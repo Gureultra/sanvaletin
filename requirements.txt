@@ -1,4 +1,4 @@
 streamlit
 fitparse
 pandas
-st-gsheets-connection
+xlsxwriter
