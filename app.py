@@ -21,13 +21,13 @@ with st.expander("ℹ️ Ver baremo de puntos por zona"):
     """)
 
 # 3. CONEXIÓN A GOOGLE SHEETS
-# Cargamos los secretos en un diccionario local para poder manipular la private_key sin error
-secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
-if "private_key" in secrets_dict:
-    secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
-
-# Pasamos el diccionario corregido a la conexión
-conn = st.connection("gsheets", type=GSheetsConnection, **secrets_dict)
+# Usamos una forma de conexión que no depende de pasar el diccionario por parámetros
+# Streamlit leerá directamente de st.secrets["connections"]["gsheets"]
+# El truco para la private_key es que en tus SECRETS de la web debes ponerla bien formateada.
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error("Error al conectar con la base de datos. Verifica los Secrets en Streamlit Cloud.")
 
 # 4. ENTRADA DE USUARIO
 nombre_usuario = st.text_input("Nombre / Nickname:").strip().upper()
@@ -37,9 +37,10 @@ uploaded_file = st.file_uploader("Sube tu archivo .fit", type=["fit"])
 
 if uploaded_file is not None and nombre_usuario != "":
     try:
-        with st.spinner('Analizando actividad y actualizando ranking...'):
+        with st.spinner('Analizando actividad...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
+            # Límites de zonas (extracción o estándar)
             z_limits = []
             for record in fitfile.get_messages('hr_zone'):
                 val = record.get_value('high_value')
@@ -62,38 +63,32 @@ if uploaded_file is not None and nombre_usuario != "":
                 stats_zonas = []
                 puntos_totales_actividad = 0
                 
+                # Cálculo de tiempo por zona
                 for i, z in enumerate(config_zonas):
-                    if i == 0: # Z1
-                        segundos = sum(1 for hr in hr_data if hr <= z["lim"])
-                    elif i == 4: # Z5
-                        segundos = sum(1 for hr in hr_data if hr > z_limits[3])
-                    else: # Z2, Z3, Z4
-                        segundos = sum(1 for hr in hr_data if z_limits[i-1] < hr <= z["lim"])
+                    if i == 0: segundos = sum(1 for hr in hr_data if hr <= z["lim"])
+                    elif i == 4: segundos = sum(1 for hr in hr_data if hr > z_limits[3])
+                    else: segundos = sum(1 for hr in hr_data if z_limits[i-1] < hr <= z["lim"])
                     
                     minutos = segundos / 60
                     pts = minutos * z["mult"]
                     puntos_totales_actividad += pts
-                    
                     if segundos > 0:
-                        stats_zonas.append({
-                            "Zona": z["nombre"],
-                            "Tiempo": f"{int(minutos)} min {int(segundos % 60)} seg",
-                            "Puntos": round(pts, 2)
-                        })
+                        stats_zonas.append({"Zona": z["nombre"], "Tiempo": f"{int(minutos)} min {int(segundos % 60)} seg", "Puntos": round(pts, 2)})
 
-                # --- RESULTADO DE LA SUBIDA ---
+                # RESULTADOS INDIVIDUALES
                 st.success(f"✅ ¡Actividad registrada para {nombre_usuario}!")
-                st.write(f"**Total de la actividad:** {round(puntos_totales_actividad, 2)} puntos.")
+                st.write(f"**Total acumulado hoy:** {round(puntos_totales_actividad, 2)} puntos.")
                 st.table(pd.DataFrame(stats_zonas))
 
-                # --- ACTUALIZAR BASE DE DATOS ---
+                # ACTUALIZACIÓN DEL RANKING EN LA HOJA
                 df_ranking = conn.read(ttl=0)
                 if df_ranking is None or df_ranking.empty:
                     df_ranking = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
+                
+                # Asegurar que la columna de puntos sea numérica
+                df_ranking['Puntos Totales'] = pd.to_numeric(df_ranking['Puntos Totales'], errors='coerce').fillna(0)
 
                 if nombre_usuario in df_ranking['Ciclista'].values:
-                    # Nos aseguramos de que la columna de puntos sea numérica
-                    df_ranking['Puntos Totales'] = pd.to_numeric(df_ranking['Puntos Totales'])
                     df_ranking.loc[df_ranking['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_totales_actividad
                 else:
                     nueva_fila = pd.DataFrame([{'Ciclista': nombre_usuario, 'Puntos Totales': puntos_totales_actividad}])
@@ -101,9 +96,9 @@ if uploaded_file is not None and nombre_usuario != "":
                 
                 conn.update(data=df_ranking)
             else:
-                st.error("No se detectaron datos de pulsaciones.")
+                st.error("No se encontraron datos de pulsaciones.")
     except Exception as e:
-        st.error(f"Error al procesar: {e}")
+        st.error(f"Error técnico: {e}")
 
 # 5. RANKING GLOBAL
 st.divider()
@@ -111,9 +106,11 @@ st.subheader("📊 Ranking Mensual Acumulado")
 try:
     ranking = conn.read(ttl=0)
     if ranking is not None and not ranking.empty:
+        # Forzar orden numérico para el ranking
+        ranking['Puntos Totales'] = pd.to_numeric(ranking['Puntos Totales'], errors='coerce')
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False)
         st.dataframe(ranking, use_container_width=True, hide_index=True)
     else:
         st.info("Aún no hay datos registrados.")
-except Exception:
-    st.info("Conectando con el ranking...")
+except:
+    st.info("Conectando con la base de datos...")
