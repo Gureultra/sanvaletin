@@ -21,12 +21,13 @@ with st.expander("ℹ️ Ver baremo de puntos por zona"):
     """)
 
 # 3. CONEXIÓN A GOOGLE SHEETS
-# Limpieza de la clave privada para evitar errores de formato (vía Secrets)
-if "connections" in st.secrets and "gsheets" in st.secrets.connections:
-    if "private_key" in st.secrets.connections.gsheets:
-        st.secrets.connections.gsheets["private_key"] = st.secrets.connections.gsheets["private_key"].replace("\\n", "\n")
+# Cargamos los secretos en un diccionario local para poder manipular la private_key sin error
+secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
+if "private_key" in secrets_dict:
+    secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
 
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Pasamos el diccionario corregido a la conexión
+conn = st.connection("gsheets", type=GSheetsConnection, **secrets_dict)
 
 # 4. ENTRADA DE USUARIO
 nombre_usuario = st.text_input("Nombre / Nickname:").strip().upper()
@@ -39,20 +40,17 @@ if uploaded_file is not None and nombre_usuario != "":
         with st.spinner('Analizando actividad y actualizando ranking...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Extraer zonas del archivo (prioridad usuario)
             z_limits = []
             for record in fitfile.get_messages('hr_zone'):
                 val = record.get_value('high_value')
                 if val: z_limits.append(val)
             
-            # Backup zonas estándar (FC Max 190)
             if len(z_limits) < 4:
                 z_limits = [114, 133, 152, 171, 220]
 
             hr_data = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
 
             if hr_data:
-                # Definición de multiplicadores
                 config_zonas = [
                     {"nombre": "Z1", "lim": z_limits[0], "mult": 1.0},
                     {"nombre": "Z2", "lim": z_limits[1], "mult": 1.5},
@@ -61,20 +59,16 @@ if uploaded_file is not None and nombre_usuario != "":
                     {"nombre": "Z5", "lim": 999, "mult": 10.0}
                 ]
 
-                # Cálculo de tiempo y puntos por zona
                 stats_zonas = []
                 puntos_totales_actividad = 0
                 
-                for z in config_zonas:
-                    # Contamos segundos en el rango de la zona
-                    if z["nombre"] == "Z1":
+                for i, z in enumerate(config_zonas):
+                    if i == 0: # Z1
                         segundos = sum(1 for hr in hr_data if hr <= z["lim"])
-                    elif z["nombre"] == "Z5":
+                    elif i == 4: # Z5
                         segundos = sum(1 for hr in hr_data if hr > z_limits[3])
-                    else:
-                        # Para Z2, Z3, Z4 buscamos el rango entre el límite anterior y el actual
-                        idx = config_zonas.index(z)
-                        segundos = sum(1 for hr in hr_data if z_limits[idx-1] < hr <= z["lim"])
+                    else: # Z2, Z3, Z4
+                        segundos = sum(1 for hr in hr_data if z_limits[i-1] < hr <= z["lim"])
                     
                     minutos = segundos / 60
                     pts = minutos * z["mult"]
@@ -94,10 +88,12 @@ if uploaded_file is not None and nombre_usuario != "":
 
                 # --- ACTUALIZAR BASE DE DATOS ---
                 df_ranking = conn.read(ttl=0)
-                if df_ranking.empty or 'Ciclista' not in df_ranking.columns:
+                if df_ranking is None or df_ranking.empty:
                     df_ranking = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
 
                 if nombre_usuario in df_ranking['Ciclista'].values:
+                    # Nos aseguramos de que la columna de puntos sea numérica
+                    df_ranking['Puntos Totales'] = pd.to_numeric(df_ranking['Puntos Totales'])
                     df_ranking.loc[df_ranking['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_totales_actividad
                 else:
                     nueva_fila = pd.DataFrame([{'Ciclista': nombre_usuario, 'Puntos Totales': puntos_totales_actividad}])
@@ -113,7 +109,11 @@ if uploaded_file is not None and nombre_usuario != "":
 st.divider()
 st.subheader("📊 Ranking Mensual Acumulado")
 try:
-    ranking = conn.read(ttl=0).sort_values(by='Puntos Totales', ascending=False)
-    st.dataframe(ranking, use_container_width=True, hide_index=True)
-except:
-    st.info("Aún no hay datos registrados.")
+    ranking = conn.read(ttl=0)
+    if ranking is not None and not ranking.empty:
+        ranking = ranking.sort_values(by='Puntos Totales', ascending=False)
+        st.dataframe(ranking, use_container_width=True, hide_index=True)
+    else:
+        st.info("Aún no hay datos registrados.")
+except Exception:
+    st.info("Conectando con el ranking...")
