@@ -1,119 +1,83 @@
 import streamlit as st
 import fitparse
 import pandas as pd
-from io import BytesIO
+from streamlit_gsheets import GSheetsConnection
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Reto Ciclista - Corazón de Hierro", layout="centered")
-
-# Logotipo
+# 1. CONFIGURACIÓN
+st.set_page_config(page_title="Ranking Corazón de Hierro", layout="centered")
 st.image("https://drive.google.com/thumbnail?id=146rpaRwOGYAGXZMhzAY3iLKK07XrIAhn", width=200)
+st.title("🏆 Ranking Mensual")
 
-st.title("🏆 Reto: Corazón de Hierro")
-st.markdown("Calcula tu esfuerzo mensual basado en la intensidad de tu pulso.")
+# Conexión a la hoja de Google
+conn = st.connection("gsheets", type=GSheetsConnection)
+url_hoja = "https://docs.google.com/spreadsheets/d/1kf6MwoAzD1vXmX_BfxRb0TVAZFf1-zZSzzuhe_HjstY/edit?usp=sharing"
 
-# 2. BASE DE DATOS TEMPORAL
-if 'db_ranking' not in st.session_state:
-    st.session_state.db_ranking = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
-
-# 3. ENTRADA DE USUARIO
+# 2. ENTRADA DE USUARIO
 nombre_usuario = st.text_input("Tu Nombre / Nickname:").strip().upper()
 uploaded_file = st.file_uploader("Sube tu archivo .fit", type=["fit"])
 
 if uploaded_file is not None and nombre_usuario != "":
     try:
-        with st.spinner('Analizando actividad...'):
+        with st.spinner('Procesando actividad y guardando en la nube...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Extraer zonas del archivo FIT
+            # Extraer zonas del archivo
             z_limits = []
             for record in fitfile.get_messages('hr_zone'):
                 val = record.get_value('high_value')
                 if val: z_limits.append(val)
             
-            # Si no hay zonas, aplicamos estándar (FC Max 190) sin avisos molestos
             if len(z_limits) < 4:
-                z_limits = [114, 133, 152, 171, 220]
+                z_limits = [114, 133, 152, 171, 220] # Estándar backup
 
-            # Extraer datos de frecuencia cardíaca
-            hr_data = []
-            for record in fitfile.get_messages('record'):
-                hr = record.get_value('heart_rate')
-                if hr: hr_data.append(hr)
+            # Procesar pulso
+            hr_data = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
 
             if hr_data:
-                # Definición de multiplicadores y nombres
-                config_zonas = {
-                    "Z1 (Recuperación)": {"lim": z_limits[0], "mult": 1.0},
-                    "Z2 (Fondo)": {"lim": z_limits[1], "mult": 1.5},
-                    "Z3 (Tempo)": {"lim": z_limits[2], "mult": 3.0},
-                    "Z4 (Umbral)": {"lim": z_limits[3], "mult": 5.0},
-                    "Z5 (Máximo)": {"lim": 999, "mult": 10.0}
-                }
+                def calc_pts(hr):
+                    if hr <= z_limits[0]: return 1.0 / 60
+                    if hr <= z_limits[1]: return 1.5 / 60
+                    if hr <= z_limits[2]: return 3.0 / 60
+                    if hr <= z_limits[3]: return 5.0 / 60
+                    return 10.0 / 60
 
-                # Contadores de tiempo por zona (en segundos)
-                segundos_zona = {z: 0 for z in config_zonas}
+                puntos_nuevos = sum(calc_pts(hr) for hr in hr_data)
+
+                # LEER Y ACTUALIZAR GOOGLE SHEETS
+                df_ranking = conn.read(spreadsheet=url_hoja, ttl=0)
                 
-                for hr in hr_data:
-                    for nombre, conf in config_zonas.items():
-                        if hr <= conf["lim"]:
-                            segundos_zona[nombre] += 1
-                            break
+                # Limpiar datos vacíos si los hay
+                if df_ranking.empty:
+                    df_ranking = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
 
-                # Preparar desglose de resultados
-                desglose_data = []
-                puntos_totales_actividad = 0
-                
-                for nombre, segs in segundos_zona.items():
-                    mins = segs / 60
-                    pts = mins * config_zonas[nombre]["mult"]
-                    puntos_totales_actividad += pts
-                    if segs > 0: # Solo mostrar zonas donde hubo actividad
-                        desglose_data.append({
-                            "Zona": nombre,
-                            "Tiempo": f"{int(mins)} min {int(segs % 60)} seg",
-                            "Puntos": round(pts, 2)
-                        })
-
-                # --- MOSTRAR RESULTADOS DE LA ACTIVIDAD ---
-                st.success(f"✅ ¡Actividad procesada para {nombre_usuario}!")
-                
-                col1, col2 = st.columns(2)
-                col1.metric("Puntos Actividad", f"{round(puntos_totales_actividad, 2)} pts")
-                col2.metric("Pulsaciones Medias", f"{int(sum(hr_data)/len(hr_data))} bpm")
-
-                st.write("**Desglose por zonas:**")
-                st.table(pd.DataFrame(desglose_data))
-
-                # Actualizar Ranking Global
-                df = st.session_state.db_ranking
-                if nombre_usuario in df['Ciclista'].values:
-                    df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_totales_actividad
+                if nombre_usuario in df_ranking['Ciclista'].values:
+                    df_ranking.loc[df_ranking['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_nuevos
                 else:
-                    nueva_fila = pd.DataFrame([{'Ciclista': nombre_usuario, 'Puntos Totales': puntos_totales_actividad}])
-                    st.session_state.db_ranking = pd.concat([df, nueva_fila], ignore_index=True)
+                    nueva_fila = pd.DataFrame([{'Ciclista': nombre_usuario, 'Puntos Totales': puntos_nuevos}])
+                    df_ranking = pd.concat([df_ranking, nueva_fila], ignore_index=True)
                 
+                # Guardar permanentemente
+                conn.update(spreadsheet=url_hoja, data=df_ranking)
+                st.success(f"✅ ¡Puntos guardados! Has sumado {round(puntos_nuevos, 2)} pts.")
             else:
-                st.error("El archivo no tiene datos de frecuencia cardíaca.")
+                st.error("No hay datos de pulso.")
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Error de conexión: Asegúrate de que la hoja de Google sea Pública y Editor. Detalle: {e}")
 
-# 4. CLASIFICACIÓN GENERAL
+# 3. MOSTRAR RANKING DESDE LA HOJA
 st.divider()
-st.subheader("📊 Ranking Mensual")
+st.subheader("📊 Clasificación General (Datos en tiempo real)")
 
-ranking_final = st.session_state.db_ranking.sort_values(by='Puntos Totales', ascending=False)
-st.dataframe(ranking_final, use_container_width=True, hide_index=True)
+try:
+    # Leemos siempre de la hoja para que el ranking sea el oficial
+    ranking_final = conn.read(spreadsheet=url_hoja, ttl=0).sort_values(by='Puntos Totales', ascending=False)
+    st.dataframe(ranking_final, use_container_width=True, hide_index=True)
+except:
+    st.info("Sube la primera actividad para empezar el ranking.")
 
-# 5. EXPORTAR DATOS
-if not ranking_final.empty:
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        ranking_final.to_excel(writer, index=False, sheet_name='Ranking')
-    
-    st.download_button(
-        label="📥 Descargar Ranking Completo (Excel)",
-        data=output.getvalue(),
-        file_name="ranking_corazon_hierro.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+# 4. BOTÓN PARA REINICIAR EL MES (Solo visible en barra lateral)
+if st.sidebar.button("🗑️ Poner Ranking a 0 (Nuevo Mes)"):
+    reset_df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
+    conn.update(spreadsheet=url_hoja, data=reset_df)
+    st.sidebar.success("Ranking reseteado en Google Sheets.")
+    st.rerun()
