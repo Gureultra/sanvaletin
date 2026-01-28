@@ -16,22 +16,24 @@ with st.expander("ℹ️ Baremo de puntos y Bonus"):
     st.write("- **Z1**: 1.0 pt/min | **Z2**: 1.5 pts/min | **Z3**: 3.0 pts/min | **Z4**: 5.0 pts/min | **Z5**: 10.0 pts/min")
     st.info("❤️ **BONUS SAN VALENTÍN**: Las actividades del 14 de febrero valen el DOBLE.")
 
-# 3. CONEXIÓN A GOOGLE SHEETS (Sintaxis corregida)
+# 3. CONEXIÓN A GOOGLE SHEETS (Solución al error 'multiple values for type')
 try:
-    # Obtenemos los secretos
+    # 1. Obtenemos los secretos como un diccionario normal
     conf_dict = st.secrets["connections"]["gsheets"].to_dict()
     
-    # Limpiamos la clave privada (muy importante para evitar errores de sustrato)
+    # 2. LIMPIEZA CLAVE: Eliminamos 'type' del diccionario si existe para que no choque con el código
+    if "type" in conf_dict:
+        del conf_dict["type"]
+    
+    # 3. Limpiamos la clave privada de saltos de línea incorrectos
     if "private_key" in conf_dict:
         conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
     
-    # ESTA ES LA LÍNEA CLAVE: 
-    # Usamos la clase GSheetsConnection directamente para que no haya dudas con el parámetro 'type'
+    # 4. Conectamos pasando el resto de parámetros (project_id, private_key, etc.)
     conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
     
 except Exception as e:
     st.error(f"Error de conexión: {e}")
-    st.info("Asegúrate de que tus Secrets empiecen por [connections.gsheets]")
     st.stop()
 
 # 4. ENTRADA DE USUARIO
