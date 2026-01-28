@@ -16,22 +16,10 @@ with st.expander("ℹ️ Baremo de puntos y Bonus"):
     st.write("- **Z1**: 1.0 pt/min | **Z2**: 1.5 pts/min | **Z3**: 3.0 pts/min | **Z4**: 5.0 pts/min | **Z5**: 10.0 pts/min")
     st.info("❤️ **BONUS SAN VALENTÍN**: Las actividades del 14 de febrero valen el DOBLE.")
 
-# 3. CONEXIÓN A GOOGLE SHEETS (Solución al error 'multiple values for type')
+# 3. CONEXIÓN A GOOGLE SHEETS
+# La forma más robusta: dejar que Streamlit lea los Secrets por su cuenta
 try:
-    # 1. Obtenemos los secretos como un diccionario normal
-    conf_dict = st.secrets["connections"]["gsheets"].to_dict()
-    
-    # 2. LIMPIEZA CLAVE: Eliminamos 'type' del diccionario si existe para que no choque con el código
-    if "type" in conf_dict:
-        del conf_dict["type"]
-    
-    # 3. Limpiamos la clave privada de saltos de línea incorrectos
-    if "private_key" in conf_dict:
-        conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
-    
-    # 4. Conectamos pasando el resto de parámetros (project_id, private_key, etc.)
-    conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
-    
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Error de conexión: {e}")
     st.stop()
