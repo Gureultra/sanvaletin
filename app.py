@@ -25,7 +25,7 @@ except Exception as e:
     st.stop()
 
 # 4. ENTRADA DE USUARIO
-nombre_usuario = st.text_input("Tu Nombre / Nickname:").strip().upper()
+nombre_usuario = st.text_input("Tu Nombre / Apodo:").strip().upper()
 st.caption("⚠️ **Pon siempre el mismo nombre para sumar los puntos correctamente.**")
 
 uploaded_file = st.file_uploader("Sube tu archivo .fit", type=["fit"])
