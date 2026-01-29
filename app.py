@@ -8,7 +8,7 @@ from datetime import datetime
 st.set_page_config(page_title="Ranking Corazón de Hierro", layout="centered")
 
 # Logotipo
-st.image("https://drive.google.com/thumbnail?id=146rpaRwOGYAGXZMhzAY3iLKK07XrIAhn", width=200)
+st.image("https://drive.google.com/file/d/146rpaRwOGYAGXZMhzAY3iLKK07XrIAhn/view?usp=sharing", width=200)
 st.title("🏆 Ranking: Corazón de Hierro")
 
 # 2. INFORMACIÓN DEL RETO
