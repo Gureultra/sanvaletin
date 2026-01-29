@@ -11,46 +11,46 @@ st.set_page_config(
     layout="centered"
 )
 
-# Estilos CSS: Fondo al 70% negro (#1A1A1A) y textos en blanco
+# Estilos CSS mejorados
 st.markdown("""
     <style>
-    /* Fondo principal: Negro al 70% */
+    /* Fondo de la web al 70% negro aprox (#1A1A1A) */
     .stApp {
         background-color: #1A1A1A;
-        color: #FFFFFF;
     }
-    
-    /* Forzar color blanco en todas las etiquetas y textos */
-    label, p, li, span, .stMarkdown {
+
+    /* Forzar que todos los textos base sean blancos */
+    .stMarkdown, p, li, label, span {
         color: #FFFFFF !important;
     }
 
-    /* Títulos en rojo corporativo para resaltar */
+    /* Títulos en rojo */
     h1, h2, h3 {
         color: #FF4B4B !important;
         text-align: center;
     }
 
-    /* Inputs con fondo ligeramente más claro para contraste */
-    div[data-baseweb="input"], div[data-baseweb="select"] {
-        background-color: #2D2D2D !important;
-        border-radius: 5px;
+    /* --- ARREGLO PARA CAJAS DE TEXTO --- */
+    /* Aseguramos que el texto dentro de los inputs sea NEGRO o muy oscuro 
+       si el fondo es blanco, o BLANCO si el fondo es oscuro */
+    input {
+        color: #31333F !important; /* Color estándar de texto para inputs de Streamlit */
     }
     
-    input {
-        color: #FFFFFF !important;
-    }
-
-    /* Tablas legibles sobre fondo oscuro */
-    .stTable {
-        background-color: #2D2D2D !important;
-        color: #FFFFFF !important;
+    /* Si el usuario tiene el tema oscuro del navegador, esto asegura legibilidad */
+    div[data-baseweb="input"] {
         border-radius: 8px;
     }
 
-    /* Línea divisoria */
-    hr {
-        border-color: #444444;
+    /* Estilo para las tablas */
+    .stTable {
+        background-color: #262730;
+        border-radius: 10px;
+    }
+    
+    /* Ajuste de márgenes del logo */
+    .stImage > img {
+        margin-top: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -68,23 +68,22 @@ st.markdown("<p style='text-align: center; color: #BBBBBB; margin-top: -15px;'>R
 # 3. INFORMACIÓN DEL RETO
 with st.expander("ℹ️ Ver Baremo de Puntos y Bonus"):
     st.markdown("""
-    **Calculado por tiempo en cada zona de frecuencia cardíaca:**
+    **Puntos por tiempo en zona:**
     * **Zona 1**: 1.0 pt/min
     * **Zona 2**: 1.5 pts/min
     * **Zona 3**: 3.0 pts/min
     * **Zona 4**: 5.0 pts/min
     * **Zona 5**: 10.0 pts/min
     """)
-    st.info("❤️ **BONUS SAN VALENTÍN**: Actividades del 14 de febrero valen el DOBLE.")
+    st.info("❤️ **BONUS**: Actividades del 14 de febrero valen el DOBLE.")
 
-# 4. CONEXIÓN A BASE DE DATOS
+# 4. CONEXIÓN
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception:
-    st.error("⚠️ Error de conexión con la base de datos.")
     st.stop()
 
-# 5. SECCIÓN DE CARGA
+# 5. CARGA DE ACTIVIDAD
 st.divider()
 st.subheader("📤 Sube tu actividad")
 
@@ -93,7 +92,7 @@ uploaded_file = st.file_uploader("Sube tu archivo .fit", type=["fit"])
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Procesando actividad...'):
+        with st.spinner('Procesando...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
             # Fecha para Bonus
@@ -103,8 +102,6 @@ if uploaded_file and nombre_usuario:
                 if fecha_act: break
             
             es_san_valentin = (fecha_act and fecha_act.month == 2 and fecha_act.day == 14)
-
-            # Procesamiento de pulsaciones
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
 
             if hr_records:
@@ -125,24 +122,19 @@ if uploaded_file and nombre_usuario:
                     if segs > 0:
                         stats_zonas.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(mins)}m {int(segs%60)}s", "Puntos": round(pts, 2)})
 
-                # Resultados
                 if es_san_valentin: st.balloons()
-                
                 st.markdown(f"### ✅ ¡Has sumado **{round(puntos_act, 2)}** puntos!")
                 
-                col_left, col_right = st.columns(2)
-                with col_left:
-                    st.table(pd.DataFrame(stats_zonas))
-                with col_right:
-                    st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
+                c1, c2 = st.columns(2)
+                with c1: st.table(pd.DataFrame(stats_zonas))
+                with c2: st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
 
-                # Guardar en Google Sheets
+                # Guardar datos
                 df_ranking = conn.read(ttl=0)
                 if df_ranking is None or df_ranking.empty:
                     df_ranking = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
                 
                 df_ranking['Puntos Totales'] = pd.to_numeric(df_ranking['Puntos Totales'], errors='coerce').fillna(0)
-
                 if nombre_usuario in df_ranking['Ciclista'].values:
                     df_ranking.loc[df_ranking['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_act
                 else:
@@ -150,13 +142,11 @@ if uploaded_file and nombre_usuario:
                     df_ranking = pd.concat([df_ranking, nueva_fila], ignore_index=True)
                 
                 conn.update(data=df_ranking)
-                st.toast("Clasificación actualizada.")
-            else:
-                st.error("No hay datos de pulso en este archivo.")
+                st.toast("Ranking actualizado.")
     except Exception as e:
         st.error(f"Error: {e}")
 
-# 6. CLASIFICACIÓN
+# 6. RANKING
 st.divider()
 st.subheader("📊 Ranking General")
 try:
@@ -166,4 +156,4 @@ try:
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False)
         st.dataframe(ranking, use_container_width=True, hide_index=True)
 except:
-    st.info("Actualizando tabla...")
+    pass
