@@ -4,33 +4,52 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA (Tema nativo oscuro)
+# 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
     page_title="Ranking Gure Ultra",
     page_icon="❤️",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="centered"
 )
 
-# Estilos CSS específicos para corregir visibilidad
+# Estilos CSS para forzar textos en blanco y legibilidad
 st.markdown("""
     <style>
-    /* Centrar logo y mejorar contraste de títulos */
+    /* Fondo principal y textos base */
     .stApp {
         background-color: #0E1117;
+        color: #FFFFFF;
     }
-    h1 {
+    
+    /* Forzar color blanco en etiquetas de formularios (labels) */
+    label {
+        color: #FFFFFF !important;
+        font-weight: bold;
+    }
+
+    /* Títulos principales */
+    h1, h2, h3 {
         color: #FF4B4B !important;
         text-align: center;
-        padding-bottom: 0px;
     }
-    .stExpander {
-        border: 1px solid #333;
-        border-radius: 10px;
+
+    /* Textos dentro de expansores y leyendas */
+    .stMarkdown p, .stMarkdown li {
+        color: #FAFAFA !important;
     }
-    /* Estilo para los inputs */
-    div[data-baseweb="input"] {
-        background-color: #262730 !important;
+
+    /* Ajuste de inputs para que el texto escrito sea legible */
+    input {
+        color: #FFFFFF !important;
+    }
+
+    /* Estilo para las tablas */
+    .stTable {
+        color: #FFFFFF !important;
+    }
+    
+    /* Caption o textos pequeños */
+    .stCaption {
+        color: #CCCCCC !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -38,31 +57,30 @@ st.markdown("""
 # 2. LOGOTIPO Y CABECERA
 URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
 
-# Usamos columnas para controlar el tamaño y centrado del logo
 col1, col2, col3 = st.columns([1, 1.5, 1])
 with col2:
     st.image(URL_LOGO, use_container_width=True)
 
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; margin-top: -15px;'>Reto de Intensidad Gure Ultra</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #CCCCCC; margin-top: -15px;'>Reto de Intensidad Gure Ultra</p>", unsafe_allow_html=True)
 
 # 3. INFORMACIÓN DEL RETO
 with st.expander("ℹ️ Ver Baremo de Puntos y Bonus"):
-    st.write("Calculado por tiempo en cada zona de frecuencia cardíaca:")
     st.markdown("""
-    - **Zona 1**: 1.0 pt/min
-    - **Zona 2**: 1.5 pts/min
-    - **Zona 3**: 3.0 pts/min
-    - **Zona 4**: 5.0 pts/min
-    - **Zona 5**: 10.0 pts/min
+    **Calculado por tiempo en cada zona de frecuencia cardíaca:**
+    * **Zona 1**: 1.0 pt/min
+    * **Zona 2**: 1.5 pts/min
+    * **Zona 3**: 3.0 pts/min
+    * **Zona 4**: 5.0 pts/min
+    * **Zona 5**: 10.0 pts/min
     """)
     st.info("❤️ **BONUS SAN VALENTÍN**: Actividades del 14 de febrero valen el DOBLE.")
 
-# 4. CONEXIÓN (Manejo de errores mejorado)
+# 4. CONEXIÓN
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception:
-    st.warning("⚠️ Error de conexión con la base de datos. Verifica tus Secrets.")
+    st.error("⚠️ Error de conexión con la base de datos.")
     st.stop()
 
 # 5. ENTRADA DE DATOS
@@ -70,8 +88,9 @@ st.divider()
 st.subheader("📤 Sube tu actividad")
 
 nombre_usuario = st.text_input("Tu Nombre / Nickname:").strip().upper()
+st.caption("Usa siempre el mismo nombre para acumular tus puntos.")
 
-uploaded_file = st.file_uploader("Archivo .fit de tu reloj", type=["fit"], help="Sube el archivo original exportado de Garmin/Strava")
+uploaded_file = st.file_uploader("Selecciona tu archivo .fit", type=["fit"])
 
 if uploaded_file and nombre_usuario:
     try:
@@ -107,7 +126,7 @@ if uploaded_file and nombre_usuario:
                     if segs > 0:
                         stats_zonas.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(mins)}m {int(segs%60)}s", "Puntos": round(pts, 2)})
 
-                # Mostrar Resultados con diseño limpio
+                # Mostrar Resultados
                 if es_san_valentin: st.balloons()
                 
                 st.markdown(f"### ✅ ¡Puntos calculados: **{round(puntos_act, 2)}**!")
@@ -132,11 +151,11 @@ if uploaded_file and nombre_usuario:
                     df_ranking = pd.concat([df_ranking, nueva_fila], ignore_index=True)
                 
                 conn.update(data=df_ranking)
-                st.toast("Puntos guardados correctamente")
+                st.toast("¡Puntos guardados con éxito!")
             else:
-                st.error("No se encontraron datos de pulso.")
+                st.error("No se detectaron datos de pulso en el archivo.")
     except Exception as e:
-        st.error(f"Error al leer archivo: {e}")
+        st.error(f"Error técnico: {e}")
 
 # 6. RANKING
 st.divider()
@@ -148,4 +167,4 @@ try:
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False)
         st.dataframe(ranking, use_container_width=True, hide_index=True)
 except:
-    st.info("Cargando clasificación...")
+    st.info("Sincronizando clasificación...")
