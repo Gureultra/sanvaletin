@@ -11,45 +11,46 @@ st.set_page_config(
     layout="centered"
 )
 
-# Estilos CSS para forzar textos en blanco y legibilidad
+# Estilos CSS: Fondo al 70% negro (#1A1A1A) y textos en blanco
 st.markdown("""
     <style>
-    /* Fondo principal y textos base */
+    /* Fondo principal: Negro al 70% */
     .stApp {
-        background-color: #0E1117;
+        background-color: #1A1A1A;
         color: #FFFFFF;
     }
     
-    /* Forzar color blanco en etiquetas de formularios (labels) */
-    label {
+    /* Forzar color blanco en todas las etiquetas y textos */
+    label, p, li, span, .stMarkdown {
         color: #FFFFFF !important;
-        font-weight: bold;
     }
 
-    /* Títulos principales */
+    /* Títulos en rojo corporativo para resaltar */
     h1, h2, h3 {
         color: #FF4B4B !important;
         text-align: center;
     }
 
-    /* Textos dentro de expansores y leyendas */
-    .stMarkdown p, .stMarkdown li {
-        color: #FAFAFA !important;
+    /* Inputs con fondo ligeramente más claro para contraste */
+    div[data-baseweb="input"], div[data-baseweb="select"] {
+        background-color: #2D2D2D !important;
+        border-radius: 5px;
     }
-
-    /* Ajuste de inputs para que el texto escrito sea legible */
+    
     input {
         color: #FFFFFF !important;
     }
 
-    /* Estilo para las tablas */
+    /* Tablas legibles sobre fondo oscuro */
     .stTable {
+        background-color: #2D2D2D !important;
         color: #FFFFFF !important;
+        border-radius: 8px;
     }
-    
-    /* Caption o textos pequeños */
-    .stCaption {
-        color: #CCCCCC !important;
+
+    /* Línea divisoria */
+    hr {
+        border-color: #444444;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -62,7 +63,7 @@ with col2:
     st.image(URL_LOGO, use_container_width=True)
 
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #CCCCCC; margin-top: -15px;'>Reto de Intensidad Gure Ultra</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #BBBBBB; margin-top: -15px;'>Reto de Intensidad Gure Ultra</p>", unsafe_allow_html=True)
 
 # 3. INFORMACIÓN DEL RETO
 with st.expander("ℹ️ Ver Baremo de Puntos y Bonus"):
@@ -76,28 +77,26 @@ with st.expander("ℹ️ Ver Baremo de Puntos y Bonus"):
     """)
     st.info("❤️ **BONUS SAN VALENTÍN**: Actividades del 14 de febrero valen el DOBLE.")
 
-# 4. CONEXIÓN
+# 4. CONEXIÓN A BASE DE DATOS
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception:
     st.error("⚠️ Error de conexión con la base de datos.")
     st.stop()
 
-# 5. ENTRADA DE DATOS
+# 5. SECCIÓN DE CARGA
 st.divider()
 st.subheader("📤 Sube tu actividad")
 
 nombre_usuario = st.text_input("Tu Nombre / Nickname:").strip().upper()
-st.caption("Usa siempre el mismo nombre para acumular tus puntos.")
-
-uploaded_file = st.file_uploader("Selecciona tu archivo .fit", type=["fit"])
+uploaded_file = st.file_uploader("Sube tu archivo .fit", type=["fit"])
 
 if uploaded_file and nombre_usuario:
     try:
         with st.spinner('Procesando actividad...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Lógica de fecha para Bonus
+            # Fecha para Bonus
             fecha_act = None
             for record in fitfile.get_messages('session'):
                 fecha_act = record.get_value('start_time')
@@ -105,7 +104,7 @@ if uploaded_file and nombre_usuario:
             
             es_san_valentin = (fecha_act and fecha_act.month == 2 and fecha_act.day == 14)
 
-            # Lógica de procesamiento de pulso
+            # Procesamiento de pulsaciones
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
 
             if hr_records:
@@ -126,10 +125,10 @@ if uploaded_file and nombre_usuario:
                     if segs > 0:
                         stats_zonas.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(mins)}m {int(segs%60)}s", "Puntos": round(pts, 2)})
 
-                # Mostrar Resultados
+                # Resultados
                 if es_san_valentin: st.balloons()
                 
-                st.markdown(f"### ✅ ¡Puntos calculados: **{round(puntos_act, 2)}**!")
+                st.markdown(f"### ✅ ¡Has sumado **{round(puntos_act, 2)}** puntos!")
                 
                 col_left, col_right = st.columns(2)
                 with col_left:
@@ -137,7 +136,7 @@ if uploaded_file and nombre_usuario:
                 with col_right:
                     st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
 
-                # Actualización de Google Sheets
+                # Guardar en Google Sheets
                 df_ranking = conn.read(ttl=0)
                 if df_ranking is None or df_ranking.empty:
                     df_ranking = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
@@ -151,15 +150,15 @@ if uploaded_file and nombre_usuario:
                     df_ranking = pd.concat([df_ranking, nueva_fila], ignore_index=True)
                 
                 conn.update(data=df_ranking)
-                st.toast("¡Puntos guardados con éxito!")
+                st.toast("Clasificación actualizada.")
             else:
-                st.error("No se detectaron datos de pulso en el archivo.")
+                st.error("No hay datos de pulso en este archivo.")
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Error: {e}")
 
-# 6. RANKING
+# 6. CLASIFICACIÓN
 st.divider()
-st.subheader("📊 Ranking Mensual Acumulado")
+st.subheader("📊 Ranking General")
 try:
     ranking = conn.read(ttl=0)
     if ranking is not None and not ranking.empty:
@@ -167,4 +166,4 @@ try:
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False)
         st.dataframe(ranking, use_container_width=True, hide_index=True)
 except:
-    st.info("Sincronizando clasificación...")
+    st.info("Actualizando tabla...")
