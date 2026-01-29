@@ -100,7 +100,7 @@ nombre_usuario = st.text_input("Tu Nombre / Nickname:", placeholder="Ejemplo: JU
 
 # Instrucción en español sobre el cargador
 st.caption("Nota: El botón de abajo aparecerá en español si tu navegador está configurado en ese idioma.")
-uploaded_file = st.file_uploader("Selecciona tu archivo .FIT de tu reloj", type=["fit"])
+uploaded_file = st.file_uploader("Selecciona tu archivo .FIT de tu actividad", type=["fit"])
 
 if uploaded_file and nombre_usuario:
     try:
