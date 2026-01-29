@@ -6,57 +6,61 @@ from datetime import datetime
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
-    page_title="Ranking Gure Ultra",
-    page_icon="🏆",
+    page_title="Gure Ultra | Ranking Corazón de Hierro",
+    page_icon="🔥",
     layout="centered"
 )
 
-# 2. DISEÑO CSS PROFESIONAL
+# 2. ESTILOS CSS PARA UN DISEÑO MODERNO
 st.markdown("""
     <style>
-    /* Fondo general oscuro suave */
+    /* Fondo oscuro profesional */
     .stApp {
-        background-color: #121212;
+        background-color: #0E1117;
     }
     
-    /* Tarjetas de información */
-    div.stExpander, div.stAlert, .stTable {
-        background-color: #1E1E1E !important;
-        border: 1px solid #333 !important;
-        border-radius: 12px !important;
-        color: white !important;
-    }
-
-    /* Forzar textos en blanco para legibilidad */
+    /* Forzar visibilidad de textos */
     h1, h2, h3, p, label, .stMarkdown, .stTable td {
         color: #FFFFFF !important;
     }
     
-    /* Subtítulos decorativos */
-    .gray-text {
-        color: #BBBBBB !important;
-        font-size: 0.9rem;
-        text-align: center;
+    /* Advertencia resaltada */
+    .warning-box {
+        background-color: #2E1A05;
+        border-left: 5px solid #FFA500;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
     }
 
-    /* Botones y acentos en rojo corporativo */
-    .stButton>button {
-        background-color: #FF4B4B !important;
-        color: white !important;
+    /* Tarjetas de resultados */
+    .result-card {
+        background-color: #1E2128;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #30363D;
+        margin-top: 15px;
+    }
+
+    /* Estilo para los inputs */
+    div[data-baseweb="input"] {
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
         border-radius: 8px !important;
-        border: none !important;
-        width: 100%;
     }
-
-    /* Estilo para las métricas de puntos */
-    [data-testid="stMetricValue"] {
-        color: #FF4B4B !important;
+    
+    /* Botón de Streamlit */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        background-color: #FF4B4B;
+        color: white;
         font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABECERA CON LOGO
+# 3. CABECERA
 URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
 
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -64,44 +68,48 @@ with col2:
     st.image(URL_LOGO, use_container_width=True)
 
 st.markdown("<h1 style='text-align: center; margin-bottom: 0px;'>Corazón de Hierro</h1>", unsafe_allow_html=True)
-st.markdown("<p class='gray-text'>RETO DE INTENSIDAD Y RENDIMIENTO</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #8B949E;'>RETO DE INTENSIDAD GURE ULTRA</p>", unsafe_allow_html=True)
 
-# 4. INFORMACIÓN DEL RETO
-st.write("")
+# 4. ADVERTENCIA IMPORTANTE (NOMBRE DE USUARIO)
+st.markdown(f"""
+    <div class="warning-box">
+        <span style="color: #FFA500; font-weight: bold;">⚠️ AVISO IMPORTANTE:</span><br>
+        Para que tus puntos se acumulen correctamente en el ranking, debes usar <b>EXACTAMENTE EL MISMO NOMBRE</b> cada vez que subas una actividad.
+    </div>
+    """, unsafe_allow_html=True)
+
+# 5. INFORMACIÓN DEL RETO
 with st.expander("📊 Ver sistema de puntuación"):
     st.markdown("""
-    Los puntos se calculan automáticamente según el tiempo que pases en cada zona de pulso:
+    Puntos por minuto según tu frecuencia cardíaca:
     - **Zona 1**: 1.0 pt/min  |  **Zona 2**: 1.5 pts/min
     - **Zona 3**: 3.0 pts/min |  **Zona 4**: 5.0 pts/min
     - **Zona 5**: 10.0 pts/min
     
-    ❤️ **BONUS SAN VALENTÍN**: Actividades del 14 de febrero valen el **DOBLE (x2)**.
+    ❤️ **BONUS SAN VALENTÍN**: Las actividades del 14 de febrero valen el **DOBLE (x2)**.
     """)
 
-# 5. CONEXIÓN A GOOGLE SHEETS
+# 6. CONEXIÓN A GOOGLE SHEETS
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception:
-    st.error("Error al conectar con el Ranking. Verifica los Secrets.")
+    st.error("Error al conectar con el Ranking.")
     st.stop()
 
-# 6. PANEL DE SUBIDA
-st.write("")
-st.subheader("📤 Sube tu Entrenamiento")
-
-# Usamos columnas para los inputs principales
+# 7. PANEL DE SUBIDA
+st.markdown("### 📤 Sube tu Entrenamiento")
 c1, c2 = st.columns([1, 1])
 with c1:
-    nombre_usuario = st.text_input("Nombre o Nickname", placeholder="Ej: JUAN_PRO").strip().upper()
+    nombre_usuario = st.text_input("Tu Nombre / Nickname", placeholder="Ej: MIGUEL_84").strip().upper()
 with c2:
     uploaded_file = st.file_uploader("Archivo .FIT", type=["fit"])
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Analizando datos de intensidad...'):
+        with st.spinner('Analizando datos...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Bonus San Valentín
+            # Lógica de Bonus
             fecha_act = None
             for record in fitfile.get_messages('session'):
                 fecha_act = record.get_value('start_time')
@@ -127,26 +135,26 @@ if uploaded_file and nombre_usuario:
                     p_zona = mins * mults[i] * factor
                     puntos_total += p_zona
                     if segs > 0:
-                        stats.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(mins)}m {int(segs%60)}s", "Puntos": round(p_zona, 2)})
+                        stats.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(mins)}m {int(segs%60)}s", "Pts": round(p_zona, 1)})
 
                 # --- MOSTRAR RESULTADOS ---
-                st.write("")
+                st.markdown('<div class="result-card">', unsafe_allow_html=True)
                 if es_sv: 
                     st.balloons()
-                    st.success("🎯 ¡BONUS X2 APLICADO POR SAN VALENTÍN!")
-
-                st.metric("PUNTOS SUMADOS", f"+ {round(puntos_total, 2)} pts")
+                    st.success("🎯 ¡BONUS SAN VALENTÍN ACTIVADO (x2)!")
                 
-                # Gráficas y tablas
-                col_tab, col_graph = st.columns([1, 1])
+                st.metric("PUNTOS GANADOS", f"+ {round(puntos_total, 2)}")
+                
+                col_tab, col_graph = st.columns([1, 1.2])
                 with col_tab:
-                    st.markdown("**Desglose de Sesión**")
-                    st.table(pd.DataFrame(stats))
+                    st.markdown("**Desglose por Zona**")
+                    st.dataframe(pd.DataFrame(stats), hide_index=True)
                 with col_graph:
-                    st.markdown("**Frecuencia Cardíaca (BPM)**")
-                    st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
+                    st.markdown("**Ritmo Cardíaco**")
+                    st.line_chart(pd.DataFrame(hr_records, columns=['BPM']), height=150)
+                st.markdown('</div>', unsafe_allow_html=True)
 
-                # Actualizar base de datos
+                # --- GUARDAR EN RANKING ---
                 df = conn.read(ttl=0)
                 if df is None or df.empty:
                     df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
@@ -160,26 +168,25 @@ if uploaded_file and nombre_usuario:
                     df = pd.concat([df, new_row], ignore_index=True)
                 
                 conn.update(data=df)
-                st.toast("Ranking actualizado correctamente")
+                st.toast(f"¡Hecho! Puntos sumados a {nombre_usuario}")
             else:
-                st.error("El archivo no contiene datos de ritmo cardíaco.")
+                st.error("No se detectaron datos de frecuencia cardíaca.")
     except Exception as e:
-        st.error(f"Error al procesar el archivo: {e}")
+        st.error(f"Error al leer el archivo FIT.")
 
-# 7. RANKING GLOBAL
+# 8. RANKING GLOBAL
 st.write("")
 st.divider()
-st.subheader("🏆 Clasificación General")
+st.subheader("🏆 Clasificación Gure Ultra")
 
 try:
     ranking = conn.read(ttl=0)
     if ranking is not None and not ranking.empty:
         ranking['Puntos Totales'] = pd.to_numeric(ranking['Puntos Totales'], errors='coerce')
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False).reset_index(drop=True)
-        # Añadir medalla al top 3
-        ranking.index = ranking.index + 1
-        st.dataframe(ranking, use_container_width=True)
+        ranking.index += 1 # Ranking 1, 2, 3...
+        st.table(ranking)
     else:
-        st.info("Todavía no hay actividades registradas este mes.")
+        st.info("El ranking está esperando al primer valiente. ¡Sube tu FIT!")
 except:
-    st.info("Sincronizando clasificación...")
+    st.info("Actualizando clasificación...")
