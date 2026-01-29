@@ -100,7 +100,7 @@ except Exception:
 st.markdown("### 📤 Sube tu Entrenamiento")
 c1, c2 = st.columns([1, 1])
 with c1:
-    nombre_usuario = st.text_input("Tu Nombre / Nickname", placeholder="Ej: MIGUEL_84").strip().upper()
+    nombre_usuario = st.text_input("Tu Nombre / Apodo", placeholder="Ej: MIGUEL_84").strip().upper()
 with c2:
     uploaded_file = st.file_uploader("Archivo .FIT", type=["fit"])
 
