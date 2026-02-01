@@ -11,69 +11,91 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. CONEXIÓN (Debe estar fuera de los condicionales para que no falle)
+# 2. CONEXIÓN A GOOGLE SHEETS
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error("Error crítico de conexión con Google Sheets. Revisa los Secrets.")
+except Exception:
+    st.error("Error de conexión. Verifica los Secrets de Streamlit.")
 
-# 3. DISEÑO PROFESIONAL Y LEGIBLE
+# 3. DISEÑO CSS PROFESIONAL
 st.markdown("""
     <style>
     .stApp { background-color: #121212; }
     
-    /* Forzar texto blanco en toda la app */
+    /* Textos generales */
     html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label {
         color: #FFFFFF !important;
     }
     
-    /* Títulos */
     h1, h2, h3 { color: #FF4B4B !important; text-align: center; }
 
-    /* Campos de texto: Fondo gris claro y letra NEGRA para máxima legibilidad al escribir */
+    /* Input de nombre mejorado */
     input {
-        background-color: #F0F2F6 !important;
-        color: #000000 !important;
+        background-color: #2D2D2D !important;
+        color: #FFFFFF !important;
+        border: 1px solid #FF4B4B !important;
+        border-radius: 5px !important;
     }
 
-    /* Cuadro de aviso naranja */
+    /* Caja de subida de archivos personalizada */
+    section[data-testid="stFileUploader"] {
+        background-color: #1E1E1E;
+        border: 2px dashed #FF4B4B;
+        border-radius: 15px;
+        padding: 20px;
+    }
+
+    /* Caja de advertencia */
     .warning-box {
-        background-color: #332200;
+        background-color: #2E1A05;
         border-left: 5px solid #FFA500;
         padding: 15px;
         border-radius: 8px;
         margin-bottom: 20px;
+    }
+
+    /* Tabla de zonas personalizada */
+    .zona-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+    }
+    .zona-table td, .zona-table th {
+        border: 1px solid #444;
+        padding: 8px;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # 4. CABECERA
 URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
-st.image(URL_LOGO, width=250)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image(URL_LOGO, use_container_width=True)
+
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 
-# 5. INSTRUCCIONES IMPORTANTES
+# 5. INSTRUCCIONES
 st.markdown("""
     <div class="warning-box">
-        <b>⚠️ INSTRUCCIONES CRÍTICAS:</b><br>
-        1. Usa siempre el <b>MISMO NOMBRE</b> (ej: JUAN_PEREZ) para acumular tus puntos.<br>
-        2. Solo se aceptan actividades entre el <b>1 de febrero y el 1 de marzo</b>.<br>
-        3. El archivo debe ser formato <b>.FIT</b> (Garmin, Wahoo, Strava).
+        <b>📋 IMPORTANTE:</b><br>
+        • Usa siempre el <b>MISMO NOMBRE</b> para acumular tus puntos.<br>
+        • Solo actividades entre el <b>1 de febrero y el 1 de marzo</b>.<br>
+        • El archivo debe incluir datos de <b>frecuencia cardíaca</b>.
     </div>
     """, unsafe_allow_html=True)
 
-with st.expander("ℹ️ Ver Sistema de Puntos"):
-    st.write("Puntos por minuto: Z1: 1 | Z2: 1.5 | Z3: 3 | Z4: 5 | Z5: 10")
-    st.info("❤️ Bonus San Valentín (14 feb): Puntos x2")
-
 # 6. PANEL DE SUBIDA
 st.divider()
-nombre_usuario = st.text_input("Escribe tu Nombre / Nickname:").strip().upper()
-uploaded_file = st.file_uploader("Sube tu archivo .FIT", type=["fit"])
+nombre_usuario = st.text_input("Escribe tu Nombre o Nickname:").strip().upper()
+
+st.markdown("### 📁 Sube tu actividad (.FIT)")
+uploaded_file = st.file_uploader("", type=["fit"], label_visibility="collapsed")
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Procesando y Sincronizando...'):
+        with st.spinner('Procesando actividad y desglosando zonas...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
             # Validar Fecha
@@ -87,54 +109,73 @@ if uploaded_file and nombre_usuario:
             fin_reto = date(2026, 3, 1)
 
             if not fecha_act or not (inicio_reto <= fecha_act <= fin_reto):
-                st.error(f"❌ Fecha {fecha_act} no válida para el reto actual.")
+                st.error(f"❌ Fecha {fecha_act} fuera de rango (Feb 1 - Mar 1).")
                 st.stop()
 
-            # Cálculo de Pulso
+            # Procesar datos de pulso
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
             
             if hr_records:
+                # Definición de zonas (puedes ajustar los BPM según tu criterio)
                 z_limits = [114, 133, 152, 171, 220]
                 mults = [1.0, 1.5, 3.0, 5.0, 10.0]
-                puntos_sesion = 0
-                factor = 2.0 if (fecha_act.month == 2 and fecha_act.day == 14) else 1.0
+                
+                desglose_data = []
+                total_puntos_actividad = 0
+                factor_sv = 2.0 if (fecha_act.month == 2 and fecha_act.day == 14) else 1.0
 
                 for i in range(5):
                     if i == 0: segs = sum(1 for hr in hr_records if hr <= z_limits[0])
                     elif i == 4: segs = sum(1 for hr in hr_records if hr > z_limits[3])
                     else: segs = sum(1 for hr in hr_records if z_limits[i-1] < hr <= z_limits[i])
-                    puntos_sesion += (segs / 60) * mults[i] * factor
+                    
+                    mins = segs / 60
+                    pts_zona = mins * mults[i] * factor_sv
+                    total_puntos_actividad += pts_zona
+                    
+                    if segs > 0:
+                        desglose_data.append({
+                            "Zona": f"Zona {i+1}",
+                            "Tiempo": f"{int(mins)}m {int(segs%60)}s",
+                            "Puntos": round(pts_zona, 2)
+                        })
 
-                # --- SINCRONIZACIÓN CON GOOGLE SHEETS ---
-                df = conn.read(ttl=0) # Leer datos frescos
+                # --- MOSTRAR RESULTADOS DE LA ACTIVIDAD ---
+                st.success(f"✅ Actividad procesada: {fecha_act}")
+                if factor_sv > 1: st.balloons()
                 
+                col_m1, col_m2 = st.columns(2)
+                col_m1.metric("PUNTOS HOY", f"+{round(total_puntos_actividad, 2)}")
+                col_m2.metric("BONUS", "X2 (San Valentín)" if factor_sv > 1 else "Normal")
+
+                st.markdown("#### 📊 Desglose por Zonas")
+                st.table(pd.DataFrame(desglose_data))
+
+                # --- SINCRONIZACIÓN GOOGLE SHEETS ---
+                df = conn.read(ttl=0)
                 if df is None or df.empty:
                     df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
                 
-                # Limpieza de datos para asegurar que son números
                 df['Puntos Totales'] = pd.to_numeric(df['Puntos Totales'], errors='coerce').fillna(0.0)
 
                 if nombre_usuario in df['Ciclista'].values:
-                    # Sumar a usuario existente
                     idx = df[df['Ciclista'] == nombre_usuario].index
-                    df.loc[idx, 'Puntos Totales'] = df.loc[idx, 'Puntos Totales'] + puntos_sesion
+                    df.loc[idx, 'Puntos Totales'] += total_puntos_actividad
                 else:
-                    # Crear nuevo usuario
-                    nueva_fila = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [puntos_sesion]})
+                    nueva_fila = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [total_puntos_actividad]})
                     df = pd.concat([df, nueva_fila], ignore_index=True)
 
-                # Actualizar la hoja de cálculo
                 conn.update(data=df)
+                st.toast("Ranking actualizado correctamente")
                 
-                st.success(f"✅ ¡Puntos sumados! +{round(puntos_sesion, 2)} para {nombre_usuario}")
-                st.metric("TU APORTACIÓN HOY", f"{round(puntos_sesion, 2)} pts")
+                st.markdown("#### 📈 Gráfica de Pulso (BPM)")
                 st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
             else:
-                st.error("El archivo no tiene datos de frecuencia cardíaca.")
+                st.error("No se encontraron datos de pulso en el archivo.")
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Error al procesar el archivo: {e}")
 
-# 7. RANKING EN TIEMPO REAL
+# 7. RANKING GLOBAL
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -145,4 +186,4 @@ try:
         ranking.index += 1
         st.dataframe(ranking, use_container_width=True)
 except:
-    st.info("Esperando datos del ranking...")
+    st.info("Cargando clasificación...")
