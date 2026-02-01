@@ -17,137 +17,125 @@ try:
 except Exception:
     st.error("Error de conexión con la base de datos.")
 
-# 3. DISEÑO CSS PROFESIONAL (Fondo 70% negro, textos blancos y cargador rojo/español)
+# 3. DISEÑO CSS "FORCE" (Fondo 70% negro, letras blancas, caja roja/español)
 st.markdown("""
     <style>
-    /* Fondo principal: Gris muy oscuro (aprox 70% negro) */
+    /* FONDO DE LA APP */
     .stApp {
-        background-color: #1A1A1A;
+        background-color: #1A1A1A !important;
     }
     
-    /* Forzar texto blanco en toda la app para legibilidad */
-    html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li {
+    /* FORZAR LETRAS BLANCAS EN TODA LA WEB */
+    html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li, h1, h2, h3 {
         color: #FFFFFF !important;
     }
     
-    /* Títulos en rojo Gure Ultra */
+    /* TÍTULOS EN ROJO */
     h1, h2, h3 {
         color: #FF4B4B !important;
         text-align: center;
         font-weight: bold;
     }
 
-    /* Estilo de los Inputs de texto */
+    /* CAJA DE TEXTO (INPUT) - Fondo oscuro, borde rojo, letra blanca */
     input {
         background-color: #2D2D2D !important;
         color: #FFFFFF !important;
-        border: 1px solid #FF4B4B !important;
-        border-radius: 5px !important;
+        border: 2px solid #FF4B4B !important;
     }
 
     /* --- PERSONALIZACIÓN CAJA DE SUBIDA (ROJO Y ESPAÑOL) --- */
-    section[data-testid="stFileUploader"] {
-        background-color: #262730;
-        border: 2px dashed #FF0000;
-        border-radius: 15px;
-        padding: 20px;
+    [data-testid="stFileUploader"] {
+        background-color: #262730 !important;
+        border: 2px dashed #FF0000 !important;
+        border-radius: 15px !important;
+        padding: 10px !important;
     }
     
-    /* Color de letras en rojo dentro del cargador */
-    section[data-testid="stFileUploader"] div div div div {
-        color: #FF0000 !important;
-    }
-
-    /* Botón "Examinar" en español y rojo */
-    section[data-testid="stFileUploader"] button span::before {
-        content: "Buscar archivo .FIT";
-        color: #FF0000 !important;
-        font-size: 16px;
-    }
-    section[data-testid="stFileUploader"] button span {
+    /* Ocultar textos originales en inglés y poner en ESPAÑOL y ROJO */
+    [data-testid="stFileUploader"] section div span {
         font-size: 0 !important;
     }
-
-    /* Texto "Arrastra" en español y rojo */
-    section[data-testid="stFileUploader"] section div span::before {
-        content: "Arrastra tu actividad aquí";
-        font-size: 16px;
+    [data-testid="stFileUploader"] section div span::before {
+        content: "Arrastra tu archivo .FIT aquí";
         color: #FF0000 !important;
+        font-size: 16px !important;
+        font-weight: bold;
     }
-    section[data-testid="stFileUploader"] section div span {
-        font-size: 0 !important;
+    [data-testid="stFileUploader"] button span::before {
+        content: "Buscar archivo";
+        color: #FF0000 !important;
+        font-size: 14px !important;
     }
 
-    /* Aviso de advertencia naranja */
+    /* CUADRO DE ADVERTENCIA NARANJA */
     .warning-box {
-        background-color: #332200;
-        border-left: 5px solid #FFA500;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+        background-color: #332200 !important;
+        border-left: 5px solid #FFA500 !important;
+        padding: 15px !important;
+        border-radius: 8px !important;
+        margin-bottom: 20px !important;
     }
 
-    /* Estilo de tablas */
+    /* TABLAS */
     .stTable {
         background-color: #2D2D2D !important;
-        border-radius: 10px;
+        border-radius: 10px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # 4. CABECERA Y LOGO
 URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
-col1, col2, col3 = st.columns([1, 2, 1])
+col1, col2, col3 = st.columns([1, 1.5, 1])
 with col2:
     st.image(URL_LOGO, use_container_width=True)
 
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 
-# 5. INSTRUCCIONES Y AVISO DE NOMBRE
+# 5. INSTRUCCIONES
 st.markdown("""
     <div class="warning-box">
         <b>📋 REGLAS DEL RETO:</b><br>
-        • Usa siempre <b>EL MISMO NOMBRE</b> para que tus puntos se acumulen.<br>
-        • Periodo: <b>1 de febrero al 1 de marzo de 2026</b>.<br>
-        • ❤️ <b>SAN VALENTÍN (14 Feb):</b> ¡Los puntos valen el <b>DOBLE</b>!
+        • Usa siempre <b>EL MISMO NOMBRE</b> para acumular tus puntos.<br>
+        • Periodo: <b>2 de febrero al 1 de marzo de 2026</b>.<br>
+        • ❤️ <b>SAN VALENTÍN (14 Feb):</b> ¡Puntúa <b>DOBLE (x2)</b>!
     </div>
     """, unsafe_allow_html=True)
 
 # 6. PANEL DE ENTRADA
 st.divider()
-nombre_usuario = st.text_input("Introduce tu Nombre o Nickname:").strip().upper()
+nombre_usuario = st.text_input("Introduce tu Nombre o Apodo:").strip().upper()
 
 st.markdown("### 📤 Sube tu actividad")
-uploaded_file = st.file_uploader("", type=["fit"], label_visibility="collapsed")
+uploaded_file = st.file_uploader("Subida", type=["fit"], label_visibility="collapsed")
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Procesando actividad...'):
+        with st.spinner('Analizando actividad...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Extraer Fecha y validar
             fecha_act = None
             for record in fitfile.get_messages('session'):
                 if record.get_value('start_time'):
                     fecha_act = record.get_value('start_time').date()
                     break
             
-            # Validación de rango de fechas
+            # Validación de rango de fechas (2026)
             inicio_reto = date(2026, 2, 1)
             fin_reto = date(2026, 3, 1)
 
             if not fecha_act or not (inicio_reto <= fecha_act <= fin_reto):
-                st.error(f"❌ La actividad tiene fecha de {fecha_act}. Solo se aceptan archivos de febrero 2026.")
+                st.error(f"❌ Actividad del {fecha_act}. Solo se aceptan archivos de febrero 2026.")
                 st.stop()
 
-            # Procesar Frecuencia Cardíaca
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
             
             if hr_records:
                 z_limits = [114, 133, 152, 171, 220]
                 mults = [1.0, 1.5, 3.0, 5.0, 10.0]
                 
-                # Bonus San Valentín
+                # Bonus San Valentín (14 de febrero)
                 es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
                 factor = 2.0 if es_sv else 1.0
                 
@@ -170,7 +158,7 @@ if uploaded_file and nombre_usuario:
                             "Puntos": round(pts_zona, 2)
                         })
 
-                # --- RESULTADOS VISUALES ---
+                # --- MOSTRAR RESULTADOS ---
                 if es_sv:
                     st.balloons()
                     st.markdown("### ❤️ ¡BONUS SAN VALENTÍN ACTIVADO! (Puntos x2)")
@@ -181,10 +169,10 @@ if uploaded_file and nombre_usuario:
                 col_m1.metric("PUNTOS HOY", f"+{round(puntos_sesion, 2)}")
                 col_m2.metric("FECHA", str(fecha_act))
 
-                st.markdown("#### 📊 Desglose de la sesión")
+                st.markdown("#### 📊 Desglose detallado")
                 st.table(pd.DataFrame(desglose_data))
 
-                # --- SINCRONIZACIÓN GOOGLE SHEETS ---
+                # --- SINCRONIZACIÓN ---
                 df = conn.read(ttl=0)
                 if df is None or df.empty:
                     df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
@@ -204,9 +192,9 @@ if uploaded_file and nombre_usuario:
                 st.markdown("#### 📈 Gráfica de Pulso")
                 st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
             else:
-                st.error("El archivo no contiene datos de frecuencia cardíaca.")
+                st.error("No se detectó frecuencia cardíaca.")
     except Exception as e:
-        st.error(f"Error al procesar el archivo FIT.")
+        st.error(f"Error al procesar el archivo.")
 
 # 7. RANKING GLOBAL
 st.divider()
