@@ -81,7 +81,7 @@ st.markdown("""
     <div class="warning-box">
         <b>📋 IMPORTANTE:</b><br>
         • Usa siempre el <b>MISMO NOMBRE</b> para acumular tus puntos.<br>
-        • Solo actividades entre el <b>1 de febrero y el 1 de marzo</b>.<br>
+        • Solo actividades entre el <b>2 de febrero y el 1 de marzo</b>.<br>
         • El archivo debe incluir datos de <b>frecuencia cardíaca</b>.
     </div>
     """, unsafe_allow_html=True)
