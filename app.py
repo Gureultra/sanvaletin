@@ -88,7 +88,7 @@ st.markdown("""
 
 # 6. PANEL DE SUBIDA
 st.divider()
-nombre_usuario = st.text_input("Escribe tu Nombre o Nickname:").strip().upper()
+nombre_usuario = st.text_input("Escribe tu Nombre o Apodo:").strip().upper()
 
 st.markdown("### 📁 Sube tu actividad (.FIT)")
 uploaded_file = st.file_uploader("", type=["fit"], label_visibility="collapsed")
