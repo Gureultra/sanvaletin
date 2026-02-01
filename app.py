@@ -69,14 +69,14 @@ st.markdown("""
     <div class="warning-box">
         <b>📋 RECORDATORIO DE DINÁMICA:</b><br>
         • Usa siempre el <b>MISMO NOMBRE</b> para que tus puntos se acumulen.<br>
-        • Rango del reto: <b>1 de febrero al 1 de marzo de 2026</b>.<br>
+        • Rango del reto: <b>2 de febrero al 1 de marzo de 2026</b>.<br>
         • ❤️ <b>BONUS SAN VALENTÍN:</b> ¡Las rutas del 14 de febrero puntúan <b>DOBLE</b>!
     </div>
     """, unsafe_allow_html=True)
 
 # 6. PANEL DE SUBIDA
 st.divider()
-nombre_usuario = st.text_input("Tu Nombre / Nickname:").strip().upper()
+nombre_usuario = st.text_input("Tu Nombre / Apodo:").strip().upper()
 
 st.markdown("### 📁 Sube tu archivo .FIT")
 uploaded_file = st.file_uploader("", type=["fit"], label_visibility="collapsed")
