@@ -15,21 +15,21 @@ st.set_page_config(
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception:
-    st.error("Error de conexión. Verifica los Secrets de Streamlit.")
+    st.error("Error de conexión con la base de datos.")
 
-# 3. DISEÑO CSS PROFESIONAL
+# 3. DISEÑO CSS PROFESIONAL (Fondo 70% negro y legibilidad)
 st.markdown("""
     <style>
-    .stApp { background-color: #121212; }
+    .stApp { background-color: #1A1A1A; }
     
-    /* Textos generales */
+    /* Textos generales en blanco */
     html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label {
         color: #FFFFFF !important;
     }
     
     h1, h2, h3 { color: #FF4B4B !important; text-align: center; }
 
-    /* Input de nombre mejorado */
+    /* Inputs de texto: fondo oscuro con borde rojo y letra blanca */
     input {
         background-color: #2D2D2D !important;
         color: #FFFFFF !important;
@@ -37,33 +37,21 @@ st.markdown("""
         border-radius: 5px !important;
     }
 
-    /* Caja de subida de archivos personalizada */
+    /* Caja de subida de archivos */
     section[data-testid="stFileUploader"] {
-        background-color: #1E1E1E;
+        background-color: #262730;
         border: 2px dashed #FF4B4B;
         border-radius: 15px;
         padding: 20px;
     }
 
-    /* Caja de advertencia */
+    /* Caja de aviso */
     .warning-box {
-        background-color: #2E1A05;
+        background-color: #332200;
         border-left: 5px solid #FFA500;
         padding: 15px;
         border-radius: 8px;
         margin-bottom: 20px;
-    }
-
-    /* Tabla de zonas personalizada */
-    .zona-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 10px 0;
-    }
-    .zona-table td, .zona-table th {
-        border: 1px solid #444;
-        padding: 8px;
-        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -79,50 +67,53 @@ st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 # 5. INSTRUCCIONES
 st.markdown("""
     <div class="warning-box">
-        <b>📋 IMPORTANTE:</b><br>
-        • Usa siempre el <b>MISMO NOMBRE</b> para acumular tus puntos.<br>
-        • Solo actividades entre el <b>2 de febrero y el 1 de marzo</b>.<br>
-        • El archivo debe incluir datos de <b>frecuencia cardíaca</b>.
+        <b>📋 RECORDATORIO DE DINÁMICA:</b><br>
+        • Usa siempre el <b>MISMO NOMBRE</b> para que tus puntos se acumulen.<br>
+        • Rango del reto: <b>1 de febrero al 1 de marzo de 2026</b>.<br>
+        • ❤️ <b>BONUS SAN VALENTÍN:</b> ¡Las rutas del 14 de febrero puntúan <b>DOBLE</b>!
     </div>
     """, unsafe_allow_html=True)
 
 # 6. PANEL DE SUBIDA
 st.divider()
-nombre_usuario = st.text_input("Escribe tu Nombre o Apodo:").strip().upper()
+nombre_usuario = st.text_input("Tu Nombre / Nickname:").strip().upper()
 
-st.markdown("### 📁 Sube tu actividad (.FIT)")
+st.markdown("### 📁 Sube tu archivo .FIT")
 uploaded_file = st.file_uploader("", type=["fit"], label_visibility="collapsed")
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Procesando actividad y desglosando zonas...'):
+        with st.spinner('Analizando actividad...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Validar Fecha
+            # Validar Fecha y Bonus
             fecha_act = None
             for record in fitfile.get_messages('session'):
                 if record.get_value('start_time'):
                     fecha_act = record.get_value('start_time').date()
                     break
             
+            # Control de fechas del reto
             inicio_reto = date(2026, 2, 1)
             fin_reto = date(2026, 3, 1)
 
             if not fecha_act or not (inicio_reto <= fecha_act <= fin_reto):
-                st.error(f"❌ Fecha {fecha_act} fuera de rango (Feb 1 - Mar 1).")
+                st.error(f"❌ Actividad del {fecha_act} fuera de rango. Solo febrero de 2026.")
                 st.stop()
 
-            # Procesar datos de pulso
+            # Lógica de Puntos y Zonas
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
             
             if hr_records:
-                # Definición de zonas (puedes ajustar los BPM según tu criterio)
                 z_limits = [114, 133, 152, 171, 220]
                 mults = [1.0, 1.5, 3.0, 5.0, 10.0]
                 
+                # --- CÁLCULO DE MULTIPLICADOR SAN VALENTÍN ---
+                es_san_valentin = (fecha_act.month == 2 and fecha_act.day == 14)
+                factor_puntos = 2.0 if es_san_valentin else 1.0
+                
                 desglose_data = []
                 total_puntos_actividad = 0
-                factor_sv = 2.0 if (fecha_act.month == 2 and fecha_act.day == 14) else 1.0
 
                 for i in range(5):
                     if i == 0: segs = sum(1 for hr in hr_records if hr <= z_limits[0])
@@ -130,7 +121,7 @@ if uploaded_file and nombre_usuario:
                     else: segs = sum(1 for hr in hr_records if z_limits[i-1] < hr <= z_limits[i])
                     
                     mins = segs / 60
-                    pts_zona = mins * mults[i] * factor_sv
+                    pts_zona = mins * mults[i] * factor_puntos
                     total_puntos_actividad += pts_zona
                     
                     if segs > 0:
@@ -140,15 +131,18 @@ if uploaded_file and nombre_usuario:
                             "Puntos": round(pts_zona, 2)
                         })
 
-                # --- MOSTRAR RESULTADOS DE LA ACTIVIDAD ---
-                st.success(f"✅ Actividad procesada: {fecha_act}")
-                if factor_sv > 1: st.balloons()
+                # --- MOSTRAR RESULTADOS ---
+                st.success(f"✅ Actividad del día {fecha_act} procesada con éxito.")
                 
-                col_m1, col_m2 = st.columns(2)
-                col_m1.metric("PUNTOS HOY", f"+{round(total_puntos_actividad, 2)}")
-                col_m2.metric("BONUS", "X2 (San Valentín)" if factor_sv > 1 else "Normal")
+                if es_san_valentin:
+                    st.balloons()
+                    st.markdown("### ❤️ ¡BONUS SAN VALENTÍN APLICADO! (Puntos x2)")
 
-                st.markdown("#### 📊 Desglose por Zonas")
+                c_m1, c_m2 = st.columns(2)
+                c_m1.metric("PUNTOS GENERADOS", f"+{round(total_puntos_actividad, 2)}")
+                c_m2.metric("MODO", "DOBLE ❤️" if es_san_valentin else "Estándar")
+
+                st.markdown("#### 📊 Detalle por Zonas")
                 st.table(pd.DataFrame(desglose_data))
 
                 # --- SINCRONIZACIÓN GOOGLE SHEETS ---
@@ -166,18 +160,18 @@ if uploaded_file and nombre_usuario:
                     df = pd.concat([df, nueva_fila], ignore_index=True)
 
                 conn.update(data=df)
-                st.toast("Ranking actualizado correctamente")
+                st.toast(f"¡Hecho! Puntos añadidos a {nombre_usuario}")
                 
-                st.markdown("#### 📈 Gráfica de Pulso (BPM)")
+                st.markdown("#### 📈 Gráfica de Intensidad")
                 st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
             else:
-                st.error("No se encontraron datos de pulso en el archivo.")
+                st.error("No se detectaron pulsaciones en el archivo.")
     except Exception as e:
-        st.error(f"Error al procesar el archivo: {e}")
+        st.error(f"Error técnico: {e}")
 
-# 7. RANKING GLOBAL
+# 7. CLASIFICACIÓN GLOBAL
 st.divider()
-st.subheader("🏆 Clasificación General")
+st.subheader("🏆 Ranking General")
 try:
     ranking = conn.read(ttl=0)
     if ranking is not None and not ranking.empty:
@@ -186,4 +180,4 @@ try:
         ranking.index += 1
         st.dataframe(ranking, use_container_width=True)
 except:
-    st.info("Cargando clasificación...")
+    st.info("Sincronizando clasificación...")
