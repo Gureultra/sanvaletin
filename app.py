@@ -17,19 +17,27 @@ try:
 except Exception:
     st.error("Error de conexión con la base de datos.")
 
-# 3. DISEÑO CSS PROFESIONAL (Fondo 70% negro y legibilidad)
+# 3. DISEÑO CSS PROFESIONAL (Fondo 70% negro, textos blancos y cargador rojo/español)
 st.markdown("""
     <style>
-    .stApp { background-color: #1A1A1A; }
+    /* Fondo principal: Gris muy oscuro (aprox 70% negro) */
+    .stApp {
+        background-color: #1A1A1A;
+    }
     
-    /* Textos generales en blanco */
-    html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label {
+    /* Forzar texto blanco en toda la app para legibilidad */
+    html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li {
         color: #FFFFFF !important;
     }
     
-    h1, h2, h3 { color: #FF4B4B !important; text-align: center; }
+    /* Títulos en rojo Gure Ultra */
+    h1, h2, h3 {
+        color: #FF4B4B !important;
+        text-align: center;
+        font-weight: bold;
+    }
 
-    /* Inputs de texto: fondo oscuro con borde rojo y letra blanca */
+    /* Estilo de los Inputs de texto */
     input {
         background-color: #2D2D2D !important;
         color: #FFFFFF !important;
@@ -37,15 +45,40 @@ st.markdown("""
         border-radius: 5px !important;
     }
 
-    /* Caja de subida de archivos */
+    /* --- PERSONALIZACIÓN CAJA DE SUBIDA (ROJO Y ESPAÑOL) --- */
     section[data-testid="stFileUploader"] {
         background-color: #262730;
-        border: 2px dashed #FF4B4B;
+        border: 2px dashed #FF0000;
         border-radius: 15px;
         padding: 20px;
     }
+    
+    /* Color de letras en rojo dentro del cargador */
+    section[data-testid="stFileUploader"] div div div div {
+        color: #FF0000 !important;
+    }
 
-    /* Caja de aviso */
+    /* Botón "Examinar" en español y rojo */
+    section[data-testid="stFileUploader"] button span::before {
+        content: "Buscar archivo .FIT";
+        color: #FF0000 !important;
+        font-size: 16px;
+    }
+    section[data-testid="stFileUploader"] button span {
+        font-size: 0 !important;
+    }
+
+    /* Texto "Arrastra" en español y rojo */
+    section[data-testid="stFileUploader"] section div span::before {
+        content: "Arrastra tu actividad aquí";
+        font-size: 16px;
+        color: #FF0000 !important;
+    }
+    section[data-testid="stFileUploader"] section div span {
+        font-size: 0 !important;
+    }
+
+    /* Aviso de advertencia naranja */
     .warning-box {
         background-color: #332200;
         border-left: 5px solid #FFA500;
@@ -53,10 +86,16 @@ st.markdown("""
         border-radius: 8px;
         margin-bottom: 20px;
     }
+
+    /* Estilo de tablas */
+    .stTable {
+        background-color: #2D2D2D !important;
+        border-radius: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABECERA
+# 4. CABECERA Y LOGO
 URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
@@ -64,56 +103,56 @@ with col2:
 
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 
-# 5. INSTRUCCIONES
+# 5. INSTRUCCIONES Y AVISO DE NOMBRE
 st.markdown("""
     <div class="warning-box">
-        <b>📋 RECORDATORIO DE DINÁMICA:</b><br>
-        • Usa siempre el <b>MISMO NOMBRE</b> para que tus puntos se acumulen.<br>
-        • Rango del reto: <b>2 de febrero al 1 de marzo de 2026</b>.<br>
-        • ❤️ <b>BONUS SAN VALENTÍN:</b> ¡Las rutas del 14 de febrero puntúan <b>DOBLE</b>!
+        <b>📋 REGLAS DEL RETO:</b><br>
+        • Usa siempre <b>EL MISMO NOMBRE</b> para que tus puntos se acumulen.<br>
+        • Periodo: <b>1 de febrero al 1 de marzo de 2026</b>.<br>
+        • ❤️ <b>SAN VALENTÍN (14 Feb):</b> ¡Los puntos valen el <b>DOBLE</b>!
     </div>
     """, unsafe_allow_html=True)
 
-# 6. PANEL DE SUBIDA
+# 6. PANEL DE ENTRADA
 st.divider()
-nombre_usuario = st.text_input("Tu Nombre / Apodo:").strip().upper()
+nombre_usuario = st.text_input("Introduce tu Nombre o Nickname:").strip().upper()
 
-st.markdown("### 📁 Sube tu archivo .FIT")
+st.markdown("### 📤 Sube tu actividad")
 uploaded_file = st.file_uploader("", type=["fit"], label_visibility="collapsed")
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Analizando actividad...'):
+        with st.spinner('Procesando actividad...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Validar Fecha y Bonus
+            # Extraer Fecha y validar
             fecha_act = None
             for record in fitfile.get_messages('session'):
                 if record.get_value('start_time'):
                     fecha_act = record.get_value('start_time').date()
                     break
             
-            # Control de fechas del reto
+            # Validación de rango de fechas
             inicio_reto = date(2026, 2, 1)
             fin_reto = date(2026, 3, 1)
 
             if not fecha_act or not (inicio_reto <= fecha_act <= fin_reto):
-                st.error(f"❌ Actividad del {fecha_act} fuera de rango. Solo febrero de 2026.")
+                st.error(f"❌ La actividad tiene fecha de {fecha_act}. Solo se aceptan archivos de febrero 2026.")
                 st.stop()
 
-            # Lógica de Puntos y Zonas
+            # Procesar Frecuencia Cardíaca
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
             
             if hr_records:
                 z_limits = [114, 133, 152, 171, 220]
                 mults = [1.0, 1.5, 3.0, 5.0, 10.0]
                 
-                # --- CÁLCULO DE MULTIPLICADOR SAN VALENTÍN ---
-                es_san_valentin = (fecha_act.month == 2 and fecha_act.day == 14)
-                factor_puntos = 2.0 if es_san_valentin else 1.0
+                # Bonus San Valentín
+                es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
+                factor = 2.0 if es_sv else 1.0
                 
                 desglose_data = []
-                total_puntos_actividad = 0
+                puntos_sesion = 0
 
                 for i in range(5):
                     if i == 0: segs = sum(1 for hr in hr_records if hr <= z_limits[0])
@@ -121,28 +160,28 @@ if uploaded_file and nombre_usuario:
                     else: segs = sum(1 for hr in hr_records if z_limits[i-1] < hr <= z_limits[i])
                     
                     mins = segs / 60
-                    pts_zona = mins * mults[i] * factor_puntos
-                    total_puntos_actividad += pts_zona
+                    pts_zona = mins * mults[i] * factor
+                    puntos_sesion += pts_zona
                     
                     if segs > 0:
                         desglose_data.append({
-                            "Zona": f"Zona {i+1}",
+                            "Zona": f"Z{i+1}",
                             "Tiempo": f"{int(mins)}m {int(segs%60)}s",
                             "Puntos": round(pts_zona, 2)
                         })
 
-                # --- MOSTRAR RESULTADOS ---
-                st.success(f"✅ Actividad del día {fecha_act} procesada con éxito.")
-                
-                if es_san_valentin:
+                # --- RESULTADOS VISUALES ---
+                if es_sv:
                     st.balloons()
-                    st.markdown("### ❤️ ¡BONUS SAN VALENTÍN APLICADO! (Puntos x2)")
+                    st.markdown("### ❤️ ¡BONUS SAN VALENTÍN ACTIVADO! (Puntos x2)")
 
-                c_m1, c_m2 = st.columns(2)
-                c_m1.metric("PUNTOS GENERADOS", f"+{round(total_puntos_actividad, 2)}")
-                c_m2.metric("MODO", "DOBLE ❤️" if es_san_valentin else "Estándar")
+                st.success(f"✅ ¡{nombre_usuario}, has sumado {round(puntos_sesion, 2)} puntos!")
+                
+                col_m1, col_m2 = st.columns(2)
+                col_m1.metric("PUNTOS HOY", f"+{round(puntos_sesion, 2)}")
+                col_m2.metric("FECHA", str(fecha_act))
 
-                st.markdown("#### 📊 Detalle por Zonas")
+                st.markdown("#### 📊 Desglose de la sesión")
                 st.table(pd.DataFrame(desglose_data))
 
                 # --- SINCRONIZACIÓN GOOGLE SHEETS ---
@@ -154,24 +193,24 @@ if uploaded_file and nombre_usuario:
 
                 if nombre_usuario in df['Ciclista'].values:
                     idx = df[df['Ciclista'] == nombre_usuario].index
-                    df.loc[idx, 'Puntos Totales'] += total_puntos_actividad
+                    df.loc[idx, 'Puntos Totales'] += puntos_sesion
                 else:
-                    nueva_fila = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [total_puntos_actividad]})
+                    nueva_fila = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [puntos_sesion]})
                     df = pd.concat([df, nueva_fila], ignore_index=True)
 
                 conn.update(data=df)
-                st.toast(f"¡Hecho! Puntos añadidos a {nombre_usuario}")
+                st.toast("Ranking actualizado.")
                 
-                st.markdown("#### 📈 Gráfica de Intensidad")
+                st.markdown("#### 📈 Gráfica de Pulso")
                 st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
             else:
-                st.error("No se detectaron pulsaciones en el archivo.")
+                st.error("El archivo no contiene datos de frecuencia cardíaca.")
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Error al procesar el archivo FIT.")
 
-# 7. CLASIFICACIÓN GLOBAL
+# 7. RANKING GLOBAL
 st.divider()
-st.subheader("🏆 Ranking General")
+st.subheader("🏆 Clasificación General")
 try:
     ranking = conn.read(ttl=0)
     if ranking is not None and not ranking.empty:
@@ -180,4 +219,4 @@ try:
         ranking.index += 1
         st.dataframe(ranking, use_container_width=True)
 except:
-    st.info("Sincronizando clasificación...")
+    st.info("Cargando clasificación...")
