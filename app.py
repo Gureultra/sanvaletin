@@ -3,6 +3,7 @@ import fitparse
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime, date
+import altair as alt
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
@@ -14,7 +15,7 @@ st.set_page_config(
 # 2. DISEÑO CSS AVANZADO (Fondo 70% negro, textos blancos, caja roja/español)
 st.markdown("""
     <style>
-    /* Fondo principal */
+    /* Fondo principal: Gris muy oscuro (aprox 70% negro) */
     .stApp {
         background-color: #1A1A1A !important;
     }
@@ -24,21 +25,22 @@ st.markdown("""
         color: #FFFFFF !important;
     }
     
-    /* Títulos */
+    /* Títulos en rojo Gure Ultra */
     h1, h2, h3 {
         color: #FF4B4B !important;
         text-align: center;
         font-weight: bold;
     }
 
-    /* Caja de texto del nombre */
+    /* Estilo de los Inputs de texto */
     input {
         background-color: #2D2D2D !important;
         color: #FFFFFF !important;
-        border: 2px solid #FF4B4B !important;
+        border: 1px solid #FF4B4B !important;
+        border-radius: 5px !important;
     }
 
-    /* --- CAJA DE SUBIDA PERSONALIZADA --- */
+    /* --- PERSONALIZACIÓN CAJA DE SUBIDA (ROJO Y ESPAÑOL) --- */
     [data-testid="stFileUploader"] {
         background-color: #262730 !important;
         border: 2px dashed #FF0000 !important;
@@ -46,7 +48,6 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* Textos en ROJO y ESPAÑOL dentro del cargador */
     [data-testid="stFileUploader"] section div span {
         font-size: 0 !important;
     }
@@ -62,14 +63,13 @@ st.markdown("""
         font-size: 14px !important;
     }
 
-    /* Advertencia naranja */
+    /* Cuadro de advertencia naranja */
     .warning-box {
         background-color: #332200 !important;
         border-left: 5px solid #FFA500 !important;
         padding: 15px !important;
         border-radius: 8px !important;
         margin-bottom: 20px !important;
-        color: #FFFFFF !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -117,7 +117,7 @@ if uploaded_file and nombre_usuario:
                     fecha_act = record.get_value('start_time').date()
                     break
             
-            # Validar rango de fechas (Febrero 2026)
+            # Validar rango de fechas (2026)
             inicio_reto = date(2026, 2, 1)
             fin_reto = date(2026, 3, 1)
 
@@ -186,9 +186,9 @@ if uploaded_file and nombre_usuario:
                 conn.update(data=df)
                 st.toast("Ranking actualizado correctamente.")
     except Exception as e:
-        st.error(f"Error al procesar el archivo FIT.")
+        st.error(f"Error al procesar el archivo.")
 
-# 7. RANKING GLOBAL Y GRÁFICA
+# 7. RANKING GLOBAL Y GRÁFICA HORIZONTAL
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -202,15 +202,23 @@ try:
         ranking_display.index += 1
         st.dataframe(ranking_display, use_container_width=True)
 
-        # --- NUEVA GRÁFICA DE BARRAS ---
+        # --- GRÁFICA DE BARRAS HORIZONTALES ORDENADAS ---
         st.write("")
         st.subheader("📊 Comparativa de Puntos")
         
-        # Preparamos los datos para la gráfica (Nombres vs Puntos)
-        chart_data = ranking.set_index('Ciclista')['Puntos Totales']
+        # Creamos la gráfica con Altair para que sea horizontal y ordenada
+        chart = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
+            x=alt.X('Puntos Totales:Q', title='Puntos Totales'),
+            y=alt.Y('Ciclista:N', sort='-x', title='Ciclista'), # sort='-x' ordena por puntos de mayor a menor
+            tooltip=['Ciclista', 'Puntos Totales']
+        ).properties(
+            height=alt.Step(40)  # Ajusta el grosor de las filas
+        ).configure_axis(
+            labelColor='white',
+            titleColor='white'
+        )
         
-        # Mostramos la gráfica de barras (color rojo corporativo)
-        st.bar_chart(chart_data, color="#FF4B4B")
+        st.altair_chart(chart, use_container_width=True)
         
     else:
         st.info("Sincronizando clasificación...")
