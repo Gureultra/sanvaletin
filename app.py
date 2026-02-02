@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. DISEÑO CSS AGRESIVO (Fondo 70% negro, textos blancos, caja roja/español)
+# 2. DISEÑO CSS AVANZADO (Fondo 70% negro, textos blancos, caja roja/español)
 st.markdown("""
     <style>
     /* Fondo principal */
@@ -69,6 +69,7 @@ st.markdown("""
         padding: 15px !important;
         border-radius: 8px !important;
         margin-bottom: 20px !important;
+        color: #FFFFFF !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -94,7 +95,7 @@ st.markdown("""
         • Usa siempre <b>EL MISMO NOMBRE</b> para acumular tus puntos.<br>
         • Periodo: <b>1 de febrero al 1 de marzo de 2026</b>.<br>
         • ❤️ <b>SAN VALENTÍN (14 Feb):</b> ¡Puntúa <b>DOBLE (x2)</b>!<br>
-        • Nota: Las zonas superiores (Z6+) puntúan como <b>Zona 5</b>.
+        • <b>Zonas:</b> Z5, Z6 y Z7 puntúan como zona de máxima intensidad (10 pts/min).
     </div>
     """, unsafe_allow_html=True)
 
@@ -117,7 +118,7 @@ if uploaded_file and nombre_usuario:
                     fecha_act = record.get_value('start_time').date()
                     break
             
-            # Validar rango de fechas
+            # Validar rango de fechas (Febrero 2026)
             inicio_reto = date(2026, 2, 1)
             fin_reto = date(2026, 3, 1)
 
@@ -130,8 +131,9 @@ if uploaded_file and nombre_usuario:
             
             if hr_records:
                 # Definición de límites (BPM)
-                z_limits = [114, 133, 152, 171] # Límite superior de Z1, Z2, Z3, Z4
-                mults = [1.0, 1.5, 3.0, 5.0, 10.0] # Multiplicadores Z1 a Z5
+                # Z1 (<114), Z2 (114-133), Z3 (133-152), Z4 (152-171), Z5+ (>171)
+                z_limits = [114, 133, 152, 171] 
+                mults = [1.0, 1.5, 3.0, 5.0, 10.0] # El último índice es para Z5, Z6 y Z7
                 
                 es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
                 factor = 2.0 if es_sv else 1.0
@@ -139,12 +141,11 @@ if uploaded_file and nombre_usuario:
                 desglose_data = []
                 puntos_sesion = 0
 
-                for i in range(5):
-                    if i == 0: # Zona 1
+                # Calculamos Z1 a Z4
+                for i in range(4):
+                    if i == 0:
                         segs = sum(1 for hr in hr_records if hr <= z_limits[0])
-                    elif i == 4: # Zona 5 (Incluye cualquier valor superior a Z4, como Z6 o Z7)
-                        segs = sum(1 for hr in hr_records if hr > z_limits[3])
-                    else: # Zonas 2, 3, 4
+                    else:
                         segs = sum(1 for hr in hr_records if z_limits[i-1] < hr <= z_limits[i])
                     
                     mins = segs / 60
@@ -152,12 +153,23 @@ if uploaded_file and nombre_usuario:
                     puntos_sesion += pts_zona
                     
                     if segs > 0:
-                        nombre_zona = "Zona 5 (Máxima)" if i == 4 else f"Zona {i+1}"
                         desglose_data.append({
-                            "Zona": nombre_zona,
+                            "Zona": f"Z{i+1}",
                             "Tiempo": f"{int(mins)}m {int(segs%60)}s",
                             "Puntos": round(pts_zona, 2)
                         })
+
+                # LÓGICA ESPECIAL: Z5, Z6 y Z7 (Cualquier cosa por encima de Z4)
+                segs_max = sum(1 for hr in hr_records if hr > z_limits[3])
+                if segs_max > 0:
+                    mins_max = segs_max / 60
+                    pts_max = mins_max * mults[4] * factor
+                    puntos_sesion += pts_max
+                    desglose_data.append({
+                        "Zona": "Z5 / Z6 / Z7",
+                        "Tiempo": f"{int(mins_max)}m {int(segs_max%60)}s",
+                        "Puntos": round(pts_max, 2)
+                    })
 
                 # --- MOSTRAR RESULTADOS ---
                 if es_sv:
@@ -173,7 +185,7 @@ if uploaded_file and nombre_usuario:
                 st.markdown("#### 📊 Desglose de la sesión")
                 st.table(pd.DataFrame(desglose_data))
 
-                # --- ACTUALIZACIÓN DE DATOS ---
+                # --- ACTUALIZACIÓN DE DATOS EN GOOGLE SHEETS ---
                 df = conn.read(ttl=0)
                 if df is None or df.empty:
                     df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
