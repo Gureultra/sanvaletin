@@ -111,7 +111,6 @@ if uploaded_file and nombre_usuario:
         with st.spinner('Analizando actividad...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Obtener fecha
             fecha_act = None
             for record in fitfile.get_messages('session'):
                 if record.get_value('start_time'):
@@ -126,14 +125,11 @@ if uploaded_file and nombre_usuario:
                 st.error(f"❌ Actividad del {fecha_act}. Fuera de rango.")
                 st.stop()
 
-            # Procesar datos de pulso
             hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
             
             if hr_records:
-                # Definición de límites (BPM)
-                # Z1 (<114), Z2 (114-133), Z3 (133-152), Z4 (152-171), Z5+ (>171)
                 z_limits = [114, 133, 152, 171] 
-                mults = [1.0, 1.5, 3.0, 5.0, 10.0] # El último índice es para Z5, Z6 y Z7
+                mults = [1.0, 1.5, 3.0, 5.0, 10.0]
                 
                 es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
                 factor = 2.0 if es_sv else 1.0
@@ -141,7 +137,6 @@ if uploaded_file and nombre_usuario:
                 desglose_data = []
                 puntos_sesion = 0
 
-                # Calculamos Z1 a Z4
                 for i in range(4):
                     if i == 0:
                         segs = sum(1 for hr in hr_records if hr <= z_limits[0])
@@ -151,27 +146,16 @@ if uploaded_file and nombre_usuario:
                     mins = segs / 60
                     pts_zona = mins * mults[i] * factor
                     puntos_sesion += pts_zona
-                    
                     if segs > 0:
-                        desglose_data.append({
-                            "Zona": f"Z{i+1}",
-                            "Tiempo": f"{int(mins)}m {int(segs%60)}s",
-                            "Puntos": round(pts_zona, 2)
-                        })
+                        desglose_data.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(mins)}m {int(segs%60)}s", "Puntos": round(pts_zona, 2)})
 
-                # LÓGICA ESPECIAL: Z5, Z6 y Z7 (Cualquier cosa por encima de Z4)
                 segs_max = sum(1 for hr in hr_records if hr > z_limits[3])
                 if segs_max > 0:
                     mins_max = segs_max / 60
                     pts_max = mins_max * mults[4] * factor
                     puntos_sesion += pts_max
-                    desglose_data.append({
-                        "Zona": "Z5 / Z6 / Z7",
-                        "Tiempo": f"{int(mins_max)}m {int(segs_max%60)}s",
-                        "Puntos": round(pts_max, 2)
-                    })
+                    desglose_data.append({"Zona": "Z5 / Z6 / Z7", "Tiempo": f"{int(mins_max)}m {int(segs_max%60)}s", "Puntos": round(pts_max, 2)})
 
-                # --- MOSTRAR RESULTADOS ---
                 if es_sv:
                     st.balloons()
                     st.markdown("### ❤️ ¡BONUS SAN VALENTÍN ACTIVADO! (Puntos x2)")
@@ -185,7 +169,7 @@ if uploaded_file and nombre_usuario:
                 st.markdown("#### 📊 Desglose de la sesión")
                 st.table(pd.DataFrame(desglose_data))
 
-                # --- ACTUALIZACIÓN DE DATOS EN GOOGLE SHEETS ---
+                # ACTUALIZACIÓN DE DATOS
                 df = conn.read(ttl=0)
                 if df is None or df.empty:
                     df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
@@ -200,16 +184,11 @@ if uploaded_file and nombre_usuario:
                     df = pd.concat([df, nueva_fila], ignore_index=True)
 
                 conn.update(data=df)
-                st.toast("Clasificación actualizada correctamente.")
-                
-                st.markdown("#### 📈 Gráfica de Pulso")
-                st.line_chart(pd.DataFrame(hr_records, columns=['BPM']))
-            else:
-                st.error("No se detectó frecuencia cardíaca en el archivo.")
+                st.toast("Ranking actualizado correctamente.")
     except Exception as e:
         st.error(f"Error al procesar el archivo FIT.")
 
-# 7. RANKING GLOBAL
+# 7. RANKING GLOBAL Y GRÁFICA
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -217,7 +196,23 @@ try:
     if ranking is not None and not ranking.empty:
         ranking['Puntos Totales'] = pd.to_numeric(ranking['Puntos Totales']).round(2)
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False).reset_index(drop=True)
-        ranking.index += 1
-        st.dataframe(ranking, use_container_width=True)
+        
+        # Tabla de clasificación
+        ranking_display = ranking.copy()
+        ranking_display.index += 1
+        st.dataframe(ranking_display, use_container_width=True)
+
+        # --- NUEVA GRÁFICA DE BARRAS ---
+        st.write("")
+        st.subheader("📊 Comparativa de Puntos")
+        
+        # Preparamos los datos para la gráfica (Nombres vs Puntos)
+        chart_data = ranking.set_index('Ciclista')['Puntos Totales']
+        
+        # Mostramos la gráfica de barras (color rojo corporativo)
+        st.bar_chart(chart_data, color="#FF4B4B")
+        
+    else:
+        st.info("Sincronizando clasificación...")
 except:
-    st.info("Sincronizando clasificación...")
+    st.info("Esperando datos...")
