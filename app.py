@@ -12,14 +12,15 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. DISEÑO CSS EXTREMO (Fondo oscuro, letras blancas e inputs legibles)
+# 2. DISEÑO CSS "ULTRA" (Fondo 70% negro, textos blancos, caja roja/español)
 st.markdown("""
     <style>
+    /* Fondo principal: Gris muy oscuro (#1A1A1A) */
     .stApp {
         background-color: #1A1A1A !important;
     }
     
-    /* Forzar texto blanco en toda la interfaz */
+    /* FORZAR TEXTO BLANCO EN TODA LA WEB */
     html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li, h1, h2, h3 {
         color: #FFFFFF !important;
     }
@@ -30,13 +31,12 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* Estilo de la tabla de ranking */
-    .stDataFrame, .stTable {
+    /* ESTILO TABLA RANKING */
+    .stDataFrame, [data-testid="stTable"] {
         background-color: #2D2D2D !important;
-        color: white !important;
     }
 
-    /* Caja de texto del nombre: Texto NEGRO sobre fondo BLANCO para que se lea al escribir */
+    /* CAJA DE TEXTO DEL NOMBRE: Texto NEGRO sobre fondo BLANCO para legibilidad total */
     input {
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -44,13 +44,14 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* --- CAJA DE SUBIDA (ROJO Y ESPAÑOL) --- */
+    /* --- CAJA DE SUBIDA PERSONALIZADA (ROJO Y ESPAÑOL) --- */
     [data-testid="stFileUploader"] {
         background-color: #262730 !important;
         border: 2px dashed #FF0000 !important;
         border-radius: 15px !important;
     }
     
+    /* Textos en ROJO y ESPAÑOL dentro del cargador */
     [data-testid="stFileUploader"] section div span {
         font-size: 0 !important;
     }
@@ -66,6 +67,7 @@ st.markdown("""
         font-size: 14px !important;
     }
 
+    /* AVISO NARANJA */
     .warning-box {
         background-color: #332200 !important;
         border-left: 5px solid #FFA500 !important;
@@ -101,62 +103,70 @@ st.markdown("""
 # 6. PANEL DE ENTRADA
 st.divider()
 nombre_usuario = st.text_input("Escribe tu nombre EXACTO aquí:").strip().upper()
+
+st.markdown("### 📤 Sube tu actividad")
 uploaded_file = st.file_uploader("Subida", type=["fit"], label_visibility="collapsed")
 
 if uploaded_file and nombre_usuario:
     try:
-        fitfile = fitparse.FitFile(uploaded_file)
-        fecha_act = None
-        for record in fitfile.get_messages('session'):
-            if record.get_value('start_time'):
-                fecha_act = record.get_value('start_time').date()
-                break
-        
-        # Validar fechas
-        if not fecha_act or not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
-            st.error(f"❌ Fecha {fecha_act} no permitida.")
-            st.stop()
-
-        # Procesar FC
-        hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
-        if hr_records:
-            z_limits = [114, 133, 152, 171] 
-            mults = [1.0, 1.5, 3.0, 5.0, 10.0]
-            es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
-            factor = 2.0 if es_sv else 1.0
-            puntos_sesion = 0
-            desglose = []
-
-            for i in range(4):
-                if i == 0: segs = sum(1 for hr in hr_records if hr <= z_limits[0])
-                else: segs = sum(1 for hr in hr_records if z_limits[i-1] < hr <= z_limits[i])
-                p_z = (segs/60) * mults[i] * factor
-                puntos_sesion += p_z
-                if segs > 0: desglose.append({"Zona": f"Z{i+1}", "Pts": round(p_z, 2)})
-
-            segs_max = sum(1 for hr in hr_records if hr > z_limits[3])
-            if segs_max > 0:
-                p_max = (segs_max/60) * mults[4] * factor
-                puntos_sesion += p_max
-                desglose.append({"Zona": "Z5/6/7", "Pts": round(p_max, 2)})
-
-            # Guardar
-            df = conn.read(ttl=0)
-            if df is None or df.empty: df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
-            df['Puntos Totales'] = pd.to_numeric(df['Puntos Totales'], errors='coerce').fillna(0.0)
-            if nombre_usuario in df['Ciclista'].values:
-                df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_sesion
-            else:
-                new_row = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [puntos_sesion]})
-                df = pd.concat([df, new_row], ignore_index=True)
-            conn.update(data=df)
+        with st.spinner('Analizando actividad...'):
+            fitfile = fitparse.FitFile(uploaded_file)
             
-            st.success(f"✅ ¡Puntos guardados! +{round(puntos_sesion, 2)}")
-            st.table(pd.DataFrame(desglose))
-    except:
-        st.error("Error al leer el archivo.")
+            fecha_act = None
+            for record in fitfile.get_messages('session'):
+                if record.get_value('start_time'):
+                    fecha_act = record.get_value('start_time').date()
+                    break
+            
+            # Validar fechas reto 2026
+            if not fecha_act or not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
+                st.error(f"❌ Fecha {fecha_act} fuera de rango (Feb 2026).")
+                st.stop()
 
-# 7. RANKING Y GRÁFICA (FORZANDO COLORES BLANCOS)
+            # Procesar FC
+            hr_records = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate')]
+            
+            if hr_records:
+                z_limits = [114, 133, 152, 171] 
+                mults = [1.0, 1.5, 3.0, 5.0, 10.0]
+                
+                es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
+                factor = 2.0 if es_sv else 1.0
+                
+                desglose = []
+                puntos_sesion = 0
+
+                for i in range(4):
+                    if i == 0: segs = sum(1 for hr in hr_records if hr <= z_limits[0])
+                    else: segs = sum(1 for hr in hr_records if z_limits[i-1] < hr <= z_limits[i])
+                    p_z = (segs/60) * mults[i] * factor
+                    puntos_sesion += p_z
+                    if segs > 0: desglose.append({"Zona": f"Z{i+1}", "Tiempo": f"{int(segs/60)}m", "Pts": round(p_z, 2)})
+
+                segs_max = sum(1 for hr in hr_records if hr > z_limits[3])
+                if segs_max > 0:
+                    p_max = (segs_max/60) * mults[4] * factor
+                    puntos_sesion += p_max
+                    desglose.append({"Zona": "Z5/6/7", "Tiempo": f"{int(segs_max/60)}m", "Pts": round(p_max, 2)})
+
+                # Guardar en GSheets
+                df = conn.read(ttl=0)
+                if df is None or df.empty: df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
+                df['Puntos Totales'] = pd.to_numeric(df['Puntos Totales'], errors='coerce').fillna(0.0)
+                if nombre_usuario in df['Ciclista'].values:
+                    df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_sesion
+                else:
+                    new_row = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [puntos_sesion]})
+                    df = pd.concat([df, new_row], ignore_index=True)
+                conn.update(data=df)
+                
+                if es_sv: st.balloons()
+                st.success(f"✅ ¡{nombre_usuario}, has sumado {round(puntos_sesion, 2)} puntos!")
+                st.table(pd.DataFrame(desglose))
+    except:
+        st.error("Error al procesar el archivo.")
+
+# 7. RANKING Y GRÁFICA DE BARRAS HORIZONTALES CON PUNTOS
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -165,30 +175,42 @@ try:
         ranking['Puntos Totales'] = pd.to_numeric(ranking['Puntos Totales']).round(2)
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False).reset_index(drop=True)
         
+        # Tabla
         st.dataframe(ranking, use_container_width=True)
 
         st.write("")
-        st.subheader("📊 Gráfica de Rendimiento")
+        st.subheader("📊 Comparativa Visual")
         
-        # GRÁFICA ALTAIR CON CONFIGURACIÓN DE COLOR BLANCO
-        chart = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
+        # GRÁFICA ALTAIR HORIZONTAL CON PUNTOS EN LA BARRA
+        base = alt.Chart(ranking).encode(
             x=alt.X('Puntos Totales:Q', title='Puntos Totales', axis=alt.Axis(labelColor='white', titleColor='white')),
-            y=alt.Y('Ciclista:N', sort='-x', title='Ciclista', axis=alt.Axis(labelColor='white', titleColor='white')),
-            tooltip=['Ciclista', 'Puntos Totales']
-        ).properties(
-            height=alt.Step(40),
+            y=alt.Y('Ciclista:N', sort='-x', title='Ciclista', axis=alt.Axis(labelColor='white', titleColor='white'))
+        )
+
+        bars = base.mark_bar(color="#FF4B4B")
+
+        # Texto con el valor de los puntos al final de la barra
+        text = base.mark_text(
+            align='left',
+            baseline='middle',
+            dx=5, # Espacio a la derecha de la barra
+            color='white',
+            fontWeight='bold'
+        ).encode(
+            text='Puntos Totales:Q'
+        )
+
+        chart = (bars + text).properties(
+            height=alt.Step(45), # Grosor de las barras
             background='transparent'
-        ).configure_view(
-            strokeOpacity=0
         ).configure_axis(
             grid=False,
             domainColor='white',
             tickColor='white'
-        ).configure_legend(
-            labelColor='white',
-            titleColor='white'
+        ).configure_view(
+            strokeOpacity=0
         )
         
         st.altair_chart(chart, use_container_width=True)
 except:
-    st.info("Cargando datos...")
+    st.info("Sincronizando...")
