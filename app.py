@@ -249,7 +249,7 @@ try:
         
         st.dataframe(ranking, use_container_width=True)
 
-        st.markdown("### 📈 Gráfica de Líderes")
+        st.markdown("### 📈 Gráfica de Puntuación")
         
         # Gráfica Altair con Textos BLANCOS forzados
         bars = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
