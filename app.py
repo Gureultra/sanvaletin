@@ -9,10 +9,10 @@ import altair as alt
 st.set_page_config(
     page_title="Gure Ultra | Ranking Corazón de Hierro",
     page_icon="🔥",
-    layout="wide"
+    layout="centered"
 )
 
-# 2. DISEÑO CSS (Fondo 70% negro, textos blancos, inputs legibles)
+# 2. DISEÑO CSS "BLACK & RED" (70% negro, textos blancos, caja roja/español)
 st.markdown("""
     <style>
     .stApp { background-color: #1A1A1A !important; }
@@ -21,7 +21,7 @@ st.markdown("""
     }
     h1, h2, h3 { color: #FF4B4B !important; text-align: center; font-weight: bold; }
     
-    /* Input del nombre: Fondo blanco, letras NEGRAS para leer bien */
+    /* Input del nombre: Letra negra sobre fondo blanco para leer bien */
     input {
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -33,6 +33,7 @@ st.markdown("""
         background-color: #262730 !important;
         border: 2px dashed #FF0000 !important;
         border-radius: 15px;
+        padding: 10px;
     }
     [data-testid="stFileUploader"] section div span { font-size: 0 !important; }
     [data-testid="stFileUploader"] section div span::before {
@@ -40,6 +41,19 @@ st.markdown("""
         color: #FF0000 !important;
         font-size: 16px !important;
         font-weight: bold;
+    }
+    [data-testid="stFileUploader"] button span::before {
+        content: "Buscar archivo";
+        color: #FF0000 !important;
+        font-size: 14px !important;
+    }
+
+    .warning-box {
+        background-color: #332200 !important;
+        border-left: 5px solid #FFA500 !important;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -52,99 +66,112 @@ except:
 
 # 4. CABECERA
 URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
-st.image(URL_LOGO, width=200)
+st.image(URL_LOGO, width=220)
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 
-# 5. CONFIGURACIÓN DE ZONAS (CRÍTICO PARA EL CÁLCULO)
-st.markdown("### ⚙️ Configura tus Zonas de FC")
-st.write("Ajusta los límites superiores de cada zona según tu prueba de esfuerzo:")
-c1, c2, c3, c4, c5, c6 = st.columns(6)
-lim_z1 = c1.number_input("Fin Z1", value=114)
-lim_z2 = c2.number_input("Fin Z2", value=133)
-lim_z3 = c3.number_input("Fin Z3", value=152)
-lim_z4 = c4.number_input("Fin Z4", value=171)
-lim_z5 = c5.number_input("Fin Z5", value=185)
-lim_z6 = c6.number_input("Fin Z6", value=195)
-# Z7 es > lim_z6
+st.markdown("""
+    <div class="warning-box">
+        <b>⚙️ DETECCIÓN AUTOMÁTICA:</b> La app lee las zonas de tu archivo FIT.<br>
+        <b>🏆 PUNTUACIÓN:</b> Z1: 1 | Z2: 1.5 | Z3: 3 | Z4: 5 | <b>Z5, Z6, Z7: 10 pts</b>.<br>
+        ❤️ <b>14 FEB:</b> Puntos Dobles. Ranking empieza en 1.
+    </div>
+    """, unsafe_allow_html=True)
 
-# 6. PANEL DE SUBIDA
-st.divider()
-nombre_usuario = st.text_input("Introduce tu Nombre o Nickname:").strip().upper()
+# 5. PANEL DE ENTRADA
+nombre_usuario = st.text_input("Introduce tu nombre exactamente igual que siempre:").strip().upper()
 uploaded_file = st.file_uploader("Subida", type=["fit"], label_visibility="collapsed")
 
 if uploaded_file and nombre_usuario:
     try:
-        with st.spinner('Calculando puntos...'):
+        with st.spinner('Extrayendo zonas y calculando puntos...'):
             fitfile = fitparse.FitFile(uploaded_file)
-            messages = list(fitfile.get_messages('record'))
             
-            # Obtener fecha
-            fecha_act = None
-            for msg in fitfile.get_messages('session'):
-                fecha_act = msg.get_value('start_time').date()
-                break
+            # --- 1. DETECCIÓN AUTOMÁTICA DE ZONAS DESDE EL ARCHIVO ---
+            # Si no las encuentra, usará un estándar para no fallar
+            detected_zones = []
+            for msg in fitfile.get_messages('hr_zone'):
+                high_bpm = msg.get_value('high_bpm')
+                if high_bpm:
+                    detected_zones.append(high_bpm)
             
-            if not fecha_act or not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
-                st.error(f"❌ Fecha {fecha_act} no válida (Solo Feb 2026).")
-                st.stop()
+            # Si el archivo no trae zonas (algunos no las exportan), usamos estándar 7 zonas
+            if len(detected_zones) < 6:
+                detected_zones = [114, 133, 152, 171, 185, 195] # Límites Z1-Z6
 
-            # MOTOR DE CÁLCULO PRECISO
-            segundos_zonas = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0}
-            puntos_baremo = {1:1, 2:1.5, 3:3, 4:5, 5:10, 6:10, 7:10}
-            
-            last_ts = None
-            for m in messages:
+            # --- 2. CÁLCULO DE TIEMPO REAL (TIMESTAMP A TIMESTAMP) ---
+            records = []
+            for m in fitfile.get_messages('record'):
                 ts = m.get_value('timestamp')
                 hr = m.get_value('heart_rate')
                 if ts and hr:
-                    if last_ts:
-                        delta = (ts - last_ts).total_seconds()
-                        if 0 < delta < 15: # Evitar saltos por pausas
-                            if hr <= lim_z1: segundos_zonas[1] += delta
-                            elif hr <= lim_z2: segundos_zonas[2] += delta
-                            elif hr <= lim_z3: segundos_zonas[3] += delta
-                            elif hr <= lim_z4: segundos_zonas[4] += delta
-                            elif hr <= lim_z5: segundos_zonas[5] += delta
-                            elif hr <= lim_z6: segundos_zonas[6] += delta
-                            else: segundos_zonas[7] += delta
-                    last_ts = ts
-
-            # Bonus San Valentín
-            bonus = 2.0 if (fecha_act.month == 2 and fecha_act.day == 14) else 1.0
-            total_pts = 0
-            tabla_resumen = []
-
-            for z in range(1, 8):
-                segs = segundos_zonas[z]
-                if segs > 0:
-                    pts = (segs / 60) * puntos_baremo[z] * bonus
-                    total_pts += pts
-                    tabla_resumen.append({
-                        "Zona": f"Zona {z}",
-                        "Tiempo": f"{int(segs//60)}m {int(segs%60)}s",
-                        "Puntos": round(pts, 2)
-                    })
-
-            # Guardar y Mostrar
-            df = conn.read(ttl=0)
-            if df is None or df.empty: df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
-            df['Puntos Totales'] = pd.to_numeric(df['Puntos Totales'], errors='coerce').fillna(0)
+                    records.append({'t': ts, 'hr': hr})
             
-            if nombre_usuario in df['Ciclista'].values:
-                df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += total_pts
+            if len(records) > 1:
+                # Inicializar 7 zonas
+                secs_zones = [0.0] * 7
+                points_map = [1.0, 1.5, 3.0, 5.0, 10.0, 10.0, 10.0]
+                
+                for i in range(len(records)-1):
+                    delta = (records[i+1]['t'] - records[i]['t']).total_seconds()
+                    if delta > 15: delta = 1 # Ignorar saltos por pausa
+                    
+                    hr = records[i]['hr']
+                    # Clasificación en 7 zonas
+                    if hr <= detected_zones[0]: secs_zones[0] += delta
+                    elif hr <= detected_zones[1]: secs_zones[1] += delta
+                    elif hr <= detected_zones[2]: secs_zones[2] += delta
+                    elif hr <= detected_zones[3]: secs_zones[3] += delta
+                    elif hr <= detected_zones[4]: secs_zones[4] += delta
+                    elif hr <= detected_zones[5]: secs_zones[5] += delta
+                    else: secs_zones[6] += delta
+
+                # Fecha y Bonus San Valentín
+                fecha_act = records[0]['t'].date()
+                if not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
+                    st.error(f"❌ Archivo del {fecha_act} fuera de rango.")
+                    st.stop()
+
+                bonus = 2.0 if (fecha_act.month == 2 and fecha_act.day == 14) else 1.0
+                total_pts = 0
+                resumen = []
+
+                for z in range(7):
+                    s = secs_zones[z]
+                    if s > 0:
+                        m = s / 60
+                        p = m * points_map[z] * bonus
+                        total_pts += p
+                        resumen.append({
+                            "Zona": f"Zona {z+1}",
+                            "Tiempo": f"{int(s//60)}m {int(s%60)}s",
+                            "Puntos": round(p, 2)
+                        })
+
+                # --- 3. ACTUALIZACIÓN DE RANKING ---
+                df = conn.read(ttl=0)
+                if df is None or df.empty:
+                    df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
+                
+                df['Puntos Totales'] = pd.to_numeric(df['Puntos Totales'], errors='coerce').fillna(0.0)
+
+                if nombre_usuario in df['Ciclista'].values:
+                    df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += total_pts
+                else:
+                    df = pd.concat([df, pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [total_pts]})], ignore_index=True)
+                
+                conn.update(data=df)
+
+                # --- 4. FEEDBACK VISUAL ---
+                st.success(f"✅ ¡{nombre_usuario}, has sumado {round(total_pts, 2)} puntos!")
+                if bonus > 1: st.info("❤️ ¡BONUS DOBLE ACTIVADO!")
+                st.table(pd.DataFrame(resumen))
+
             else:
-                df = pd.concat([df, pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [total_pts]})], ignore_index=True)
-            
-            conn.update(data=df)
-            
-            st.success(f"✅ ¡Puntos sumados! Total sesión: {round(total_pts, 2)}")
-            if bonus > 1: st.warning("❤️ BONUS DOBLE APLICADO")
-            st.table(pd.DataFrame(tabla_resumen))
-
+                st.error("El archivo no tiene suficientes datos de pulso.")
     except Exception as e:
-        st.error(f"Error al leer el archivo. Asegúrate de que tenga pulso.")
+        st.error(f"Error al procesar: {e}")
 
-# 7. RANKING Y GRÁFICA CORREGIDA
+# 6. RANKING Y GRÁFICA FINAL
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -152,22 +179,17 @@ try:
     if data is not None and not data.empty:
         data['Puntos Totales'] = pd.to_numeric(data['Puntos Totales']).round(2)
         ranking = data.sort_values('Puntos Totales', ascending=False).reset_index(drop=True)
-        ranking.index += 1 # Empezar en 1
+        ranking.index += 1 # Ranking empieza en 1
         
         st.dataframe(ranking, use_container_width=True)
 
-        st.markdown("### 📊 Comparativa de Esfuerzo")
-        
-        # Gráfica Altair con textos blancos forzados
+        # Gráfica horizontal con puntos en las barras
         bars = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
             x=alt.X('Puntos Totales:Q', title='Puntos Totales', axis=alt.Axis(labelColor='white', titleColor='white')),
             y=alt.Y('Ciclista:N', sort='-x', title='', axis=alt.Axis(labelColor='white', titleColor='white'))
         )
+        labels = bars.mark_text(align='left', baseline='middle', dx=5, color='white', fontWeight='bold').encode(text='Puntos Totales:Q')
         
-        text = bars.mark_text(align='left', baseline='middle', dx=5, color='white', fontWeight='bold').encode(
-            text='Puntos Totales:Q'
-        )
-        
-        st.altair_chart((bars + text).properties(height=alt.Step(40)).configure_view(strokeOpacity=0), use_container_width=True)
+        st.altair_chart((bars + labels).properties(height=alt.Step(45)), use_container_width=True)
 except:
-    st.info("No hay datos en el ranking todavía.")
+    st.info("Esperando datos...")
