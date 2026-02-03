@@ -12,22 +12,40 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. DISEÑO CSS "BLACK & RED"
+# 2. DISEÑO CSS "BLACK & RED" (LEGIBILIDAD TOTAL)
 st.markdown("""
     <style>
+    /* Fondo oscuro global */
     .stApp { background-color: #1A1A1A !important; }
-    html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li, h1, h2, h3 {
+    
+    /* Textos generales en blanco */
+    html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li, h1, h2, h3, div {
         color: #FFFFFF !important;
     }
     h1, h2, h3 { color: #FF4B4B !important; text-align: center; font-weight: bold; }
     
-    /* Input numérico y de texto */
+    /* Inputs (Cajas de texto y números): Fondo blanco, letra negra */
     input {
         background-color: #FFFFFF !important;
         color: #000000 !important;
         font-weight: bold;
+        border: 2px solid #FF4B4B !important;
     }
     
+    /* BOTÓN "GUARDAR" (Solución al problema de lectura) */
+    div.stButton > button {
+        background-color: #FFFFFF !important;
+        color: #FF0000 !important;
+        font-weight: bold !important;
+        border: 2px solid #FF0000 !important;
+        font-size: 18px !important;
+        width: 100%;
+    }
+    div.stButton > button:hover {
+        background-color: #FF0000 !important;
+        color: #FFFFFF !important;
+    }
+
     /* Caja de subida */
     [data-testid="stFileUploader"] {
         background-color: #262730 !important;
@@ -41,15 +59,14 @@ st.markdown("""
         color: #FF0000 !important; font-size: 16px !important; font-weight: bold;
     }
     
+    /* Avisos */
     .warning-box {
         background-color: #332200 !important; border-left: 5px solid #FFA500 !important;
         padding: 15px; border-radius: 8px; margin-bottom: 20px;
     }
     
-    /* Métrica personalizada */
-    div[data-testid="stMetricValue"] {
-        color: #FF4B4B !important;
-    }
+    /* Métricas */
+    div[data-testid="stMetricValue"] { color: #FF4B4B !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -67,15 +84,14 @@ with col_h2:
 
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 
-# 5. CONFIGURACIÓN DE ZONAS AUTOMÁTICA
+# 5. CONFIGURACIÓN DE ZONAS
 st.markdown("### ⚙️ Configuración Personal")
 col_input, col_info = st.columns([1, 2])
 
 with col_input:
-    max_hr = st.number_input("Introduce tu FC Máxima de la temporada:", min_value=100, max_value=250, value=190, step=1)
+    max_hr = st.number_input("Introduce tu FC Máxima (Temporada):", min_value=100, max_value=250, value=190, step=1)
 
-# Cálculo automático de zonas (Modelo de 7 Zonas basado en % FC Máx)
-# Z1: <60%, Z2: 60-70%, Z3: 70-80%, Z4: 80-88%, Z5: 88-93%, Z6: 93-97%, Z7: >97%
+# Cálculo automático de zonas (Modelo 7 Zonas)
 lim_z1 = int(max_hr * 0.60)
 lim_z2 = int(max_hr * 0.70)
 lim_z3 = int(max_hr * 0.80)
@@ -85,10 +101,10 @@ lim_z6 = int(max_hr * 0.97)
 
 with col_info:
     st.info(f"""
-    **Tus Zonas Calculadas:**
-    - **Z1:** < {lim_z1} ppm | **Z2:** {lim_z1}-{lim_z2} ppm | **Z3:** {lim_z2}-{lim_z3} ppm
-    - **Z4:** {lim_z3}-{lim_z4} ppm | **Z5:** {lim_z4}-{lim_z5} ppm
-    - **Z6:** {lim_z5}-{lim_z6} ppm | **Z7:** > {lim_z6} ppm
+    **Tus Zonas Calculadas (Z5, Z6 y Z7 valen 10 pts/min):**
+    - **Z1:** <{lim_z1} | **Z2:** {lim_z1}-{lim_z2} | **Z3:** {lim_z2}-{lim_z3}
+    - **Z4:** {lim_z3}-{lim_z4} | **Z5:** {lim_z4}-{lim_z5}
+    - **Z6:** {lim_z5}-{lim_z6} | **Z7:** >{lim_z6}
     """)
 
 # 6. SUBIDA DE ARCHIVO
@@ -100,7 +116,6 @@ if uploaded_file:
         with st.spinner('Procesando datos...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
-            # Extraer registros
             records = []
             for m in fitfile.get_messages('record'):
                 ts = m.get_value('timestamp')
@@ -109,15 +124,14 @@ if uploaded_file:
                     records.append({'t': ts, 'hr': hr})
             
             if len(records) > 1:
-                # Fecha
+                # Validar fecha
                 fecha_act = records[0]['t'].date()
                 if not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
-                    st.error(f"❌ Fecha {fecha_act} fuera de rango (Feb 2026).")
+                    st.error(f"❌ Fecha {fecha_act} fuera de rango. Solo se admite FEBRERO 2026.")
                     st.stop()
 
-                # CÁLCULO DE SEGUNDOS REALES CON ZONAS DINÁMICAS
+                # Cálculo de puntos
                 secs_zones = [0.0] * 7
-                # Puntuación: Z1=1, Z2=1.5, Z3=3, Z4=5, Z5/6/7=10
                 points_map = [1.0, 1.5, 3.0, 5.0, 10.0, 10.0, 10.0]
                 
                 for i in range(len(records)-1):
@@ -125,7 +139,6 @@ if uploaded_file:
                     if delta > 15: delta = 1 
                     
                     hr = records[i]['hr']
-                    
                     if hr <= lim_z1: secs_zones[0] += delta
                     elif hr <= lim_z2: secs_zones[1] += delta
                     elif hr <= lim_z3: secs_zones[2] += delta
@@ -134,8 +147,10 @@ if uploaded_file:
                     elif hr <= lim_z6: secs_zones[5] += delta
                     else: secs_zones[6] += delta
 
-                # Resultados
-                bonus = 2.0 if (fecha_act.month == 2 and fecha_act.day == 14) else 1.0
+                # Bonus San Valentín (14 de Febrero)
+                es_san_valentin = (fecha_act.month == 2 and fecha_act.day == 14)
+                bonus = 2.0 if es_san_valentin else 1.0
+                
                 total_pts = 0
                 resumen = []
 
@@ -152,20 +167,24 @@ if uploaded_file:
                             "Puntos": round(p, 2)
                         })
 
-                # VISUALIZACIÓN
-                st.markdown("### 📊 Resultado de la Actividad")
+                # Visualización de Resultados
+                st.markdown("### 📊 Resultados")
                 c_res1, c_res2 = st.columns(2)
                 c_res1.metric("PUNTOS TOTALES", f"{round(total_pts, 2)}")
-                if bonus > 1: c_res2.warning("❤️ BONUS SAN VALENTÍN x2")
-                else: c_res2.metric("FECHA", str(fecha_act))
+                if es_san_valentin:
+                    c_res2.warning("❤️ ¡BONUS SAN VALENTÍN (x2) APLICADO!")
+                else:
+                    c_res2.metric("FECHA", str(fecha_act))
                 
                 st.table(pd.DataFrame(resumen))
 
-                # GUARDAR
-                st.markdown("### 💾 Guardar en Ranking")
-                nombre_usuario = st.text_input("Tu Nickname:", placeholder="Ej: JUAN_GARCIA").strip().upper()
+                # Guardar
+                st.markdown("### 💾 Guardar Puntos")
+                st.warning("⚠️ IMPORTANTE: Usa SIEMPRE el MISMO NOMBRE para sumar puntos.")
                 
-                if st.button("CONFIRMAR Y GUARDAR"):
+                nombre_usuario = st.text_input("Tu Nombre:", placeholder="Ej: JUAN GARCIA").strip().upper()
+                
+                if st.button("GUARDAR PUNTOS"):
                     if nombre_usuario:
                         df = conn.read(ttl=0)
                         if df is None or df.empty: df = pd.DataFrame(columns=['Ciclista', 'Puntos Totales'])
@@ -178,17 +197,17 @@ if uploaded_file:
                             df = pd.concat([df, new_row], ignore_index=True)
                         
                         conn.update(data=df)
-                        st.success("✅ ¡Guardado con éxito!")
-                        st.balloons()
+                        st.success("✅ ¡Puntos guardados correctamente!")
+                        if es_san_valentin: st.balloons()
                     else:
-                        st.warning("⚠️ Escribe un nombre para guardar.")
+                        st.error("Por favor, escribe tu nombre para poder guardar.")
 
             else:
-                st.error("Archivo sin datos de pulso válidos.")
+                st.error("No se encontraron datos de pulso en el archivo.")
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error técnico: {e}")
 
-# 7. RANKING
+# 7. RANKING Y GRÁFICA
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -200,11 +219,16 @@ try:
         
         st.dataframe(ranking, use_container_width=True)
 
-        bars = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
+        st.markdown("### 📈 Comparativa")
+        
+        # Gráfica Altair con textos BLANCOS forzados
+        base = alt.Chart(ranking).encode(
             x=alt.X('Puntos Totales:Q', axis=alt.Axis(labelColor='white', titleColor='white')),
             y=alt.Y('Ciclista:N', sort='-x', axis=alt.Axis(labelColor='white', titleColor='white'))
         )
-        text = bars.mark_text(align='left', dx=5, color='white').encode(text='Puntos Totales:Q')
+        bars = base.mark_bar(color="#FF4B4B")
+        text = base.mark_text(align='left', dx=5, color='white', fontWeight='bold').encode(text='Puntos Totales:Q')
+        
         st.altair_chart((bars + text).properties(height=alt.Step(40)).configure_view(strokeOpacity=0), use_container_width=True)
 except:
-    st.info("Cargando ranking...")
+    st.info("Cargando clasificación...")
