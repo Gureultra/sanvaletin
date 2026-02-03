@@ -12,19 +12,39 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. DISEÑO CSS CORREGIDO (Legibilidad garantizada)
+# 2. DISEÑO CSS "BLACK & RED" (Legibilidad total + Caja Instrucciones)
 st.markdown("""
     <style>
     /* Fondo oscuro global */
     .stApp { background-color: #1A1A1A !important; }
     
-    /* Forzar color blanco en textos generales */
+    /* Textos generales en blanco */
     html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li, h1, h2, h3, div {
         color: #FFFFFF !important;
     }
     h1, h2, h3 { color: #FF4B4B !important; text-align: center; font-weight: bold; }
     
-    /* Inputs: Fondo blanco y texto negro para ver lo que escribes */
+    /* CAJA DE INSTRUCCIONES SUPERIOR */
+    .instruction-box {
+        background-color: #2D2D2D;
+        border: 2px solid #FF4B4B;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 25px;
+        text-align: left;
+    }
+    .instruction-box h4 {
+        color: #FF4B4B !important;
+        margin-top: 0;
+        font-size: 22px;
+    }
+    .instruction-box li {
+        color: #FFFFFF !important;
+        font-size: 16px;
+        margin-bottom: 8px;
+    }
+
+    /* Inputs: Fondo blanco y texto negro */
     input {
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -47,13 +67,8 @@ st.markdown("""
         color: #FFFFFF !important;
         border-color: #FFFFFF !important;
     }
-    /* Asegurar que el texto dentro del botón sea rojo */
-    div[data-testid="stButton"] button p {
-        color: #FF0000 !important;
-    }
-    div[data-testid="stButton"] button:hover p {
-        color: #FFFFFF !important;
-    }
+    div[data-testid="stButton"] button p { color: #FF0000 !important; }
+    div[data-testid="stButton"] button:hover p { color: #FFFFFF !important; }
 
     /* Caja de subida de archivos */
     [data-testid="stFileUploader"] {
@@ -68,13 +83,7 @@ st.markdown("""
         color: #FF4B4B !important; font-size: 16px !important; font-weight: bold;
     }
     
-    /* Avisos */
-    .warning-box {
-        background-color: #332200 !important; border-left: 5px solid #FFA500 !important;
-        padding: 15px; border-radius: 8px; margin-bottom: 20px;
-    }
-    
-    /* Métricas grandes en rojo */
+    /* Métricas */
     div[data-testid="stMetricValue"] { color: #FF4B4B !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -85,22 +94,34 @@ try:
 except:
     st.error("Error de conexión con Google Sheets.")
 
-# 4. CABECERA
-URL_LOGO = "https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png"
+# 4. CABECERA Y LOGO
 col_h1, col_h2, col_h3 = st.columns([1, 1, 1])
 with col_h2:
-    st.image(URL_LOGO, use_container_width=True)
+    st.image("https://gureultra.com/wp-content/uploads/2024/10/GURE_ULTRA_RED_white.png", use_container_width=True)
 
 st.markdown("<h1>Corazón de Hierro</h1>", unsafe_allow_html=True)
 
-# 5. CONFIGURACIÓN DE FC MÁXIMA
+# 5. CAJA DE INSTRUCCIONES (NUEVO)
+st.markdown("""
+    <div class="instruction-box">
+        <h4>📋 INSTRUCCIONES PARA PARTICIPAR</h4>
+        <ol>
+            <li><b>Pon tu FC Máxima:</b> Escribe la frecuencia cardíaca más alta que hayas registrado esta temporada.</li>
+            <li><b>Sube el Archivo FIT:</b> Carga la actividad de tu dispositivo.</li>
+            <li><b>Pon tu Nombre:</b> Usa <u>siempre el mismo nombre</u> para que tus puntos se sumen en el ranking.</li>
+            <li>❤️ <b>Bonus:</b> El día de San Valentín (14 de febrero), ¡las actividades puntúan doble!</li>
+        </ol>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 6. CONFIGURACIÓN DE FC MÁXIMA
 st.markdown("### ⚙️ 1. Tu Frecuencia Cardíaca")
 col_cfg1, col_cfg2 = st.columns([1, 2])
 
 with col_cfg1:
-    max_hr = st.number_input("Introduce tu FC Máxima de la temporada:", min_value=100, max_value=250, value=190, step=1)
+    max_hr = st.number_input("FC Máxima de esta temporada:", min_value=100, max_value=250, value=190, step=1)
 
-# Cálculo de las 7 zonas
+# Cálculo automático de zonas (Modelo 7 Zonas)
 lim_z1 = int(max_hr * 0.60)
 lim_z2 = int(max_hr * 0.70)
 lim_z3 = int(max_hr * 0.80)
@@ -115,7 +136,7 @@ with col_cfg2:
     **Zonas de Máxima Puntuación (10 pts):** Z5, Z6 y Z7 (> {lim_z4} ppm)
     """)
 
-# 6. SUBIDA Y CÁLCULO
+# 7. SUBIDA Y CÁLCULO
 st.divider()
 st.subheader("📤 2. Sube tu actividad (.FIT)")
 uploaded_file = st.file_uploader("Subida", type=["fit"], label_visibility="collapsed")
@@ -133,7 +154,7 @@ if uploaded_file:
                     records.append({'t': ts, 'hr': hr})
             
             if len(records) > 1:
-                # Validar fecha
+                # Validar fecha (Febrero 2026)
                 fecha_act = records[0]['t'].date()
                 if not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
                     st.error(f"❌ Fecha {fecha_act} incorrecta. El reto es del 1 de febrero al 1 de marzo de 2026.")
@@ -156,7 +177,7 @@ if uploaded_file:
                     elif hr <= lim_z6: secs_zones[5] += delta
                     else: secs_zones[6] += delta
 
-                # Bonus San Valentín
+                # Bonus San Valentín (14 de Febrero)
                 es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
                 bonus = 2.0 if es_sv else 1.0
                 
@@ -180,16 +201,18 @@ if uploaded_file:
                 st.markdown("### 📊 3. Resultados de hoy")
                 c1, c2 = st.columns(2)
                 c1.metric("PUNTOS A SUMAR", f"{round(total_pts, 2)}")
-                if es_sv: c2.warning("❤️ ¡BONUS SAN VALENTÍN (x2)!")
-                else: c2.metric("FECHA", str(fecha_act))
+                if es_sv: 
+                    c2.warning("❤️ ¡BONUS SAN VALENTÍN (x2) APLICADO!")
+                    st.balloons()
+                else: 
+                    c2.metric("FECHA", str(fecha_act))
                 
                 st.table(pd.DataFrame(resumen))
 
                 # GUARDAR
-                st.markdown("### 💾 4. Guardar en la Clasificación")
-                st.info("⚠️ Recuerda usar SIEMPRE el MISMO NOMBRE para acumular tus puntos.")
+                st.markdown("### 💾 4. Guardar en el Ranking")
                 
-                nombre_usuario = st.text_input("Escribe tu NOMBRE:", placeholder="Ej: JUAN PEREZ").strip().upper()
+                nombre_usuario = st.text_input("Tu Nombre (siempre el mismo):", placeholder="Ej: JUAN PEREZ").strip().upper()
                 
                 if st.button("GUARDAR PUNTOS AHORA"):
                     if nombre_usuario:
@@ -214,7 +237,7 @@ if uploaded_file:
     except Exception as e:
         st.error(f"Error procesando archivo: {e}")
 
-# 7. CLASIFICACIÓN Y GRÁFICA
+# 8. CLASIFICACIÓN Y GRÁFICA
 st.divider()
 st.subheader("🏆 Clasificación General")
 try:
@@ -237,7 +260,7 @@ try:
         text = bars.mark_text(
             align='left',
             dx=5,
-            color='white',  # Color del texto de los puntos
+            color='white',
             fontWeight='bold'
         ).encode(
             text='Puntos Totales:Q'
@@ -245,7 +268,7 @@ try:
         
         chart = (bars + text).properties(
             height=alt.Step(50),
-            background='transparent' # Fondo transparente para que se vea el gris de la app
+            background='transparent'
         ).configure_view(
             strokeOpacity=0
         ).configure_axis(
