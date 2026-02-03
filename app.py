@@ -51,9 +51,9 @@ st.markdown("""
     .warning-box {
         background-color: #332200 !important;
         border-left: 5px solid #FFA500 !important;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+        padding: 15px !important;
+        border-radius: 8px !important;
+        margin-bottom: 20px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -86,7 +86,6 @@ if uploaded_file and nombre_usuario:
     try:
         fitfile = fitparse.FitFile(uploaded_file)
         
-        # Extraer fecha
         fecha_act = None
         for record in fitfile.get_messages('session'):
             st_time = record.get_value('start_time')
@@ -94,45 +93,43 @@ if uploaded_file and nombre_usuario:
                 fecha_act = st_time.date()
                 break
         
+        # Validación de fechas (Febrero/Marzo 2026)
         if not fecha_act or not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
-            st.error(f"❌ Archivo con fecha {fecha_act}. Solo se permite febrero de 2026.")
+            st.error(f"❌ Archivo con fecha {fecha_act}. Solo se permite desde el 1 de febrero al 1 de marzo de 2026.")
             st.stop()
 
-        # Extraer registros de pulso
         hr_data = [r.get_value('heart_rate') for r in fitfile.get_messages('record') if r.get_value('heart_rate') is not None]
         
         if hr_data:
-            # Límites y Multiplicadores
-            z_limits = [114, 133, 152, 171] # Final de Z1, Z2, Z3, Z4
+            # Límites (BPM) y Multiplicadores
+            z_limits = [114, 133, 152, 171] 
             mults = { "Z1": 1.0, "Z2": 1.5, "Z3": 3.0, "Z4": 5.0, "Z5+": 10.0 }
             
             es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
             bonus = 2.0 if es_sv else 1.0
             
-            # Contadores de segundos
             sec_z1 = sum(1 for hr in hr_data if hr <= z_limits[0])
             sec_z2 = sum(1 for hr in hr_data if z_limits[0] < hr <= z_limits[1])
             sec_z3 = sum(1 for hr in hr_data if z_limits[1] < hr <= z_limits[2])
             sec_z4 = sum(1 for hr in hr_data if z_limits[2] < hr <= z_limits[3])
-            sec_z5_plus = sum(1 for hr in hr_data if hr > z_limits[3]) # Z5, Z6 y Z7
+            sec_z5_plus = sum(1 for hr in hr_data if hr > z_limits[3]) 
 
-            # Cálculos
             zonas_list = [
                 ("Zona 1", sec_z1, mults["Z1"]),
                 ("Zona 2", sec_z2, mults["Z2"]),
                 ("Zona 3", sec_z3, mults["Z3"]),
                 ("Zona 4", sec_z4, mults["Z4"]),
-                ("Zona 5/6/7", sec_z5_plus, mults["Z5+"])
+                ("Zona 5, 6 y 7", sec_z5_plus, mults["Z5+"])
             ]
 
-            puntos_totales_sesion = 0
+            puntos_sesion = 0
             tabla_resumen = []
 
             for nombre, segs, m in zonas_list:
                 if segs > 0:
-                    mins = segs / 60
-                    p_zona = mins * m * bonus
-                    puntos_totales_sesion += p_zona
+                    mins_fractoras = segs / 60
+                    p_zona = mins_fractoras * m * bonus
+                    puntos_sesion += p_zona
                     tabla_resumen.append({
                         "Intensidad": nombre,
                         "Tiempo": f"{int(segs // 60)} min {int(segs % 60)} seg",
@@ -147,20 +144,19 @@ if uploaded_file and nombre_usuario:
             df['Puntos Totales'] = pd.to_numeric(df['Puntos Totales'], errors='coerce').fillna(0.0)
 
             if nombre_usuario in df['Ciclista'].values:
-                df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_totales_sesion
+                df.loc[df['Ciclista'] == nombre_usuario, 'Puntos Totales'] += puntos_sesion
             else:
-                new_row = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [puntos_totales_sesion]})
+                new_row = pd.DataFrame({'Ciclista': [nombre_usuario], 'Puntos Totales': [puntos_sesion]})
                 df = pd.concat([df, new_row], ignore_index=True)
             
             conn.update(data=df)
 
-            # Mostrar info al usuario
             if es_sv: st.balloons(); st.markdown("### ❤️ ¡BONUS SAN VALENTÍN x2 APLICADO!")
-            st.success(f"✅ ¡{nombre_usuario}, has sumado {round(puntos_totales_sesion, 2)} puntos!")
+            st.success(f"✅ ¡{nombre_usuario}, has sumado {round(puntos_sesion, 2)} puntos!")
             st.table(pd.DataFrame(tabla_resumen))
             
     except Exception as e:
-        st.error("Error al procesar el archivo. Asegúrate de que sea un .FIT válido con pulso.")
+        st.error("Error al procesar el archivo. Asegúrate de que tenga datos de pulso.")
 
 # 6. RANKING Y GRÁFICA
 st.divider()
@@ -170,9 +166,15 @@ try:
     if ranking is not None and not ranking.empty:
         ranking['Puntos Totales'] = pd.to_numeric(ranking['Puntos Totales']).round(2)
         ranking = ranking.sort_values(by='Puntos Totales', ascending=False).reset_index(drop=True)
-        st.dataframe(ranking, use_container_width=True)
+        
+        # AJUSTE: El número del ranking empieza por 1
+        ranking_visual = ranking.copy()
+        ranking_visual.index = ranking_visual.index + 1
+        st.dataframe(ranking_visual, use_container_width=True)
 
-        # Gráfica Horizontal
+        st.write("")
+        st.subheader("📊 Gráfica de Rendimiento")
+        
         chart = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
             x=alt.X('Puntos Totales:Q', title='Puntos Totales', axis=alt.Axis(labelColor='white', titleColor='white')),
             y=alt.Y('Ciclista:N', sort='-x', title='Ciclista', axis=alt.Axis(labelColor='white', titleColor='white')),
