@@ -15,13 +15,16 @@ st.set_page_config(
 # 2. DISEÑO CSS "BLACK & RED"
 st.markdown("""
     <style>
+    /* Fondo oscuro global */
     .stApp { background-color: #1A1A1A !important; }
+    
+    /* Textos en blanco */
     html, body, [data-testid="stWidgetLabel"], .stMarkdown, p, span, label, li, h1, h2, h3, div {
         color: #FFFFFF !important;
     }
     h1, h2, h3 { color: #FF4B4B !important; text-align: center; font-weight: bold; }
     
-    /* Inputs */
+    /* Inputs: Fondo blanco y texto negro */
     input {
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -37,10 +40,12 @@ st.markdown("""
         font-size: 20px !important;
         font-weight: bold !important;
         width: 100%;
+        transition: 0.3s;
     }
     div[data-testid="stButton"] button:hover {
         background-color: #FF0000 !important;
         color: #FFFFFF !important;
+        border-color: #FFFFFF !important;
     }
     div[data-testid="stButton"] button p { color: #FF0000 !important; }
     div[data-testid="stButton"] button:hover p { color: #FFFFFF !important; }
@@ -58,16 +63,22 @@ st.markdown("""
         color: #FF4B4B !important; font-size: 16px !important; font-weight: bold;
     }
     
-    /* Avisos y Métricas */
+    /* Cajas de aviso */
     .instruction-box {
-        background-color: #2D2D2D; border: 2px solid #FF4B4B;
-        border-radius: 10px; padding: 20px; margin-bottom: 25px;
+        background-color: #2D2D2D;
+        border: 2px solid #FF4B4B;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 25px;
     }
+    .instruction-box li { color: #FFFFFF !important; margin-bottom: 5px; }
+    
+    /* Métricas */
     div[data-testid="stMetricValue"] { color: #FF4B4B !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CONEXIÓN
+# 3. CONEXIÓN GOOGLE SHEETS
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except:
@@ -85,10 +96,10 @@ st.markdown("""
     <div class="instruction-box">
         <h4>📋 INSTRUCCIONES</h4>
         <ol>
-            <li><b>Sube tu Archivo FIT:</b> La app detectará si usas Pulso o Potencia.</li>
-            <li><b>Configura tus Zonas:</b> Introduce tu FC Máxima o FTP según corresponda.</li>
-            <li><b>Nombre Único:</b> Usa siempre el mismo nombre para el ranking.</li>
-            <li>❤️ <b>14 de Febrero:</b> ¡Puntos DOBLES en San Valentín!</li>
+            <li><b>Sube el Archivo FIT:</b> La app detectará si usas Pulso o Potencia.</li>
+            <li><b>Configura Zonas:</b> Introduce tu FC Máxima o tu FTP (si no hay pulso).</li>
+            <li><b>Nombre:</b> Usa siempre el mismo nombre para sumar puntos.</li>
+            <li>❤️ <b>Bonus:</b> El 14 de Febrero (San Valentín) los puntos valen DOBLE.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
@@ -100,7 +111,7 @@ uploaded_file = st.file_uploader("Subida", type=["fit"], label_visibility="colla
 
 if uploaded_file:
     try:
-        with st.spinner('Analizando tipo de datos (Pulso vs Potencia)...'):
+        with st.spinner('Analizando archivo...'):
             fitfile = fitparse.FitFile(uploaded_file)
             
             # 1. Extracción de datos
@@ -114,7 +125,6 @@ if uploaded_file:
                 pwr = m.get_value('power')
                 
                 if ts:
-                    # Guardamos el dato disponible
                     records.append({'t': ts, 'hr': hr, 'pwr': pwr})
                     if hr: has_hr = True
                     if pwr: has_power = True
@@ -123,7 +133,7 @@ if uploaded_file:
                 # 2. Validación de Fecha
                 fecha_act = records[0]['t'].date()
                 if not (date(2026, 2, 1) <= fecha_act <= date(2026, 3, 1)):
-                    st.error(f"❌ Fecha {fecha_act} fuera de rango. Solo se admite FEBRERO 2026.")
+                    st.error(f"❌ Fecha {fecha_act} incorrecta. El reto es solo FEBRERO 2026.")
                     st.stop()
 
                 # 3. SELECCIÓN DE MODO
@@ -137,10 +147,11 @@ if uploaded_file:
                 st.markdown("### ⚙️ Configuración de Zonas")
                 
                 secs_zones = [0.0] * 7
-                points_map = [1.0, 1.5, 3.0, 5.0, 10.0, 10.0, 10.0]
+                points_map = [1.0, 1.5, 3.0, 5.0, 10.0, 10.0, 10.0] # Puntuación igual para ambos
+                limits = []
                 
                 if mode == "HR":
-                    st.success("✅ Se han detectado datos de **FRECUENCIA CARDÍACA**.")
+                    st.success("✅ Datos de **FRECUENCIA CARDÍACA** detectados.")
                     val_ref = st.number_input("Introduce tu FC MÁXIMA de la temporada:", 100, 250, 190)
                     
                     # Límites FC (7 Zonas)
@@ -149,20 +160,23 @@ if uploaded_file:
                     l5, l6 = int(val_ref*0.93), int(val_ref*0.97)
                     limits = [l1, l2, l3, l4, l5, l6]
                     
-                    st.info(f"Zonas FC: Z1<{l1} | Z2:{l1}-{l2} | Z3:{l2}-{l3} | Z4:{l3}-{l4} | Z5+ >{l4}")
+                    st.info(f"Tus Zonas FC: Z1<{l1} | Z2:{l1}-{l2} | Z3:{l2}-{l3} | Z4:{l3}-{l4} | Z5+ >{l4}")
 
                 elif mode == "POWER":
-                    st.warning("⚠️ No hay pulso, pero sí **POTENCIA**. Usaremos Vatios.")
-                    val_ref = st.number_input("Introduce tu FTP (Umbral de Potencia):", 100, 500, 250)
+                    st.warning("⚠️ No hay pulso, pero sí **POTENCIA**. Usaremos Vatios para puntuar.")
+                    val_ref = st.number_input("Introduce tu FTP (Umbral de Potencia):", 50, 600, 250)
                     
-                    # Límites Potencia (Coggan 7 Zonas)
+                    # Límites Potencia (7 Zonas Coggan)
                     # Z1 <55%, Z2 56-75%, Z3 76-90%, Z4 91-105%, Z5 106-120%, Z6 121-150%, Z7 >150%
-                    l1, l2 = int(val_ref*0.55), int(val_ref*0.75)
-                    l3, l4 = int(val_ref*0.90), int(val_ref*1.05)
-                    l5, l6 = int(val_ref*1.20), int(val_ref*1.50)
+                    l1 = int(val_ref * 0.55)
+                    l2 = int(val_ref * 0.75)
+                    l3 = int(val_ref * 0.90)
+                    l4 = int(val_ref * 1.05)
+                    l5 = int(val_ref * 1.20)
+                    l6 = int(val_ref * 1.50)
                     limits = [l1, l2, l3, l4, l5, l6]
                     
-                    st.info(f"Zonas Vatios: Z1<{l1} | Z2:{l1}-{l2} | Z3:{l2}-{l3} | Z4:{l3}-{l4} | Z5+ >{l4}")
+                    st.info(f"Tus Zonas Vatios: Z1<{l1} | Z2:{l1}-{l2} | Z3:{l2}-{l3} | Z4:{l3}-{l4} | Z5+ >{l4}")
                 
                 else:
                     st.error("❌ El archivo no tiene ni Pulso ni Potencia. No se puede puntuar.")
@@ -176,7 +190,7 @@ if uploaded_file:
                     # Obtener valor según modo
                     val = records[i]['hr'] if mode == "HR" else records[i]['pwr']
                     
-                    if val:
+                    if val is not None:
                         if val <= limits[0]: secs_zones[0] += delta
                         elif val <= limits[1]: secs_zones[1] += delta
                         elif val <= limits[2]: secs_zones[2] += delta
@@ -185,7 +199,7 @@ if uploaded_file:
                         elif val <= limits[5]: secs_zones[5] += delta
                         else: secs_zones[6] += delta
 
-                # Bonus
+                # Bonus San Valentín
                 es_sv = (fecha_act.month == 2 and fecha_act.day == 14)
                 bonus = 2.0 if es_sv else 1.0
                 
@@ -252,9 +266,33 @@ try:
         
         st.dataframe(ranking, use_container_width=True)
 
+        st.markdown("### 📈 Gráfica de Líderes")
+        
         bars = alt.Chart(ranking).mark_bar(color="#FF4B4B").encode(
-            x=alt.X('Puntos Totales:Q', axis=alt.Axis(labelColor='white', titleColor='white')),
-            y=alt.Y('Ciclista:N', sort='-x', axis=alt.Axis(labelColor='white', titleColor='white'))
+            x=alt.X('Puntos Totales:Q', title='Puntos Totales', axis=alt.Axis(labelColor='white', titleColor='white')),
+            y=alt.Y('Ciclista:N', sort='-x', title='Ciclista', axis=alt.Axis(labelColor='white', titleColor='white'))
         )
-        text = bars.mark_text(align='left', dx=5, color='white', fontWeight='bold').encode(text='Puntos Totales:Q')
-        st.altair_chart((bars + text).properties(height=alt.Step(50), background='transparent').configure_view(strokeOpacity
+        
+        text = bars.mark_text(
+            align='left',
+            dx=5,
+            color='white',
+            fontWeight='bold'
+        ).encode(
+            text='Puntos Totales:Q'
+        )
+        
+        # Corrección del error de sintaxis anterior
+        chart = (bars + text).properties(
+            height=alt.Step(50), 
+            background='transparent'
+        ).configure_view(
+            strokeOpacity=0
+        ).configure_axis(
+            domainColor='white',
+            tickColor='white'
+        )
+        
+        st.altair_chart(chart, use_container_width=True)
+except:
+    st.info("Cargando ranking...")
